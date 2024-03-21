@@ -30,6 +30,7 @@
 
    THREAD_READY 상태의 프로세스 목록 
 */
+// test용으로 만들었음
 static struct list all_list;
 static struct list ready_list;
 static struct list sleep_list;
