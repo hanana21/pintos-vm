@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.inc": "c",
+        "debug.h": "c",
+        "syscall.h": "c",
+        "loader.h": "c",
+        "flags.h": "c",
+        "gdt.h": "c",
+        "thread.h": "c",
+        "file.h": "c"
+    }
+}
