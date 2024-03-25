@@ -23,6 +23,11 @@ static const struct page_operations uninit_ops = {
 };
 
 /* DO NOT MODIFY this function */
+/*
+- 주어진 페이지 구조체 내 초기화에 필요한 정보들을 우선적으로 담는 역할
+- 구조체의 종류를 VM_ANON이나 VM_FILE로 만들기 위해 추가적으로 
+  필요한 루틴을 수행하기 위한 page_initializer
+*/
 void
 uninit_new (struct page *page, void *va, vm_initializer *init,
 		enum vm_type type, void *aux,
@@ -43,6 +48,10 @@ uninit_new (struct page *page, void *va, vm_initializer *init,
 }
 
 /* Initalize the page on first fault */
+/*페이지 구조체에 담겨진 정보를 톧대로 해당 구조체와 연동된 페이지를 초기화시키는 역할
+- 페이지 구조체와 연ㄷ동된 페이지 자체에 담겨져 있어야
+  할 내용을 설정하기위한 vm_initializer
+*/
 static bool
 uninit_initialize (struct page *page, void *kva) {
 	struct uninit_page *uninit = &page->uninit;
