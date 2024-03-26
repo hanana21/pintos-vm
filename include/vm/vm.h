@@ -27,6 +27,7 @@ enum vm_type {
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
+#include "lib/kernel/hash.h"
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif
@@ -42,19 +43,19 @@ struct thread;
  * DO NOT REMOVE/MODIFY PREDEFINED MEMBER OF THIS STRUCTURE. */
 struct page {
 	const struct page_operations *operations;
-	void *va;              /* Address in terms of user space */
-	struct frame *frame;   /* Back reference for frame */
+	void					*va;				/* Address in terms of user space */
+	struct frame			*frame;				/* Back reference for frame */
 
 	/* Your implementation */
-
+	struct hash_elem		spt_elem;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {
-		struct uninit_page uninit;
-		struct anon_page anon;
-		struct file_page file;
+		struct uninit_page	uninit;
+		struct anon_page	anon;
+		struct file_page	file;
 #ifdef EFILESYS
-		struct page_cache page_cache;
+		struct page_cache	page_cache;
 #endif
 	};
 };
@@ -79,12 +80,14 @@ struct page_operations {
 #define swap_in(page, v) (page)->operations->swap_in ((page), v)
 #define swap_out(page) (page)->operations->swap_out (page)
 #define destroy(page) \
-	if ((page)->operations->destroy) (page)->operations->destroy (page)
+	if ((page)->operations->destroy) \
+		(page)->operations->destroy (page)
 
 /* Representation of current process's memory space.
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash			*h;
 };
 
 #include "threads/thread.h"

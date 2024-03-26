@@ -94,54 +94,57 @@ typedef int tid_t;
  * blocked state is on a semaphore wait list. */
 struct thread {
 	/* Owned by thread.c. */
-	tid_t tid;                          /* Thread identifier. */
-	enum thread_status status;          /* Thread state. */
-	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
-	int init_priority;                  /* 원래 Priority 저장용*/
-	int64_t awake;                      /* 본인 잠들 시간 저장용 */
+	tid_t				tid;					/* Thread identifier. */
+	enum thread_status	status;					/* Thread state. */
+	char				name[16];				/* Name (for debugging purposes). */
+	int					priority;				/* Priority. */
+	int					init_priority;			/* 원래 Priority 저장용*/
+	int64_t				awake;					/* 본인 잠들 시간 저장용 */
 
-	struct lock *wait_on_lock;           /* 기다리는 lock */
-	struct list donations;              /* Priority 기부 해줄 리스트*/
+	struct lock			*wait_on_lock;			/* 기다리는 lock */
+	struct list			donations;				/* Priority 기부 해줄 리스트*/
 	/* Shared between thread.c and synch.c. */
-	struct list_elem all_elem;   
-	struct list_elem elem;              /* List element. */
-	struct list_elem d_elem;            /* donations list_element */
+	struct list_elem	all_elem;				
+	struct list_elem	elem;					/* List element. */
+	struct list_elem	d_elem;					/* donations list_element */
 
 	// for advanced scheduler.
-	int nice;							/* niceness of thread for adjusting pri. */
-	int recent_cpu;					    /* utilization of cpu by calculating bunch of fomula. */
+	int					nice;					/* niceness of thread for adjusting pri. */
+	int					recent_cpu;				/* utilization of cpu by calculating bunch of fomula. */
 
 	//project 2
-	int exit_status;                    /*부모 프로세스가 확인할 exit_status*/
+	int 				exit_status;			/*부모 프로세스가 확인할 exit_status*/
 
-	struct list child_list;             /* 자식 리스트 */
-	struct list_elem child_elem;
+	struct list			child_list;				/* 자식 리스트 */
+	struct list_elem	child_elem;
 
-	struct semaphore wait_sema;         /* 자식 프로세스를 기다리기 위해 사용*/
-	struct semaphore free_sema;         /* parent가 wait함수에서 exit_status받기 전까지 child 프로세스 종료 연기*/
-	struct semaphore load_sema;         /* fork한 자식의 load기다리기용*/
+	struct semaphore	wait_sema;				/* 자식 프로세스를 기다리기 위해 사용*/
+	struct semaphore	free_sema;				/* parent가 wait함수에서 exit_status받기 전까지 child 프로세스 종료 연기*/
+	struct semaphore	load_sema;				/* fork한 자식의 load기다리기용*/
 
-	struct intr_frame parent_if;        /* fork과정에서 유저 영역 값 저장용*/ 
+	struct intr_frame	parent_if;				/* fork과정에서 유저 영역 값 저장용*/ 
 
-	struct file **fdt;                  /* file descriptor table: file구조체의 포인터로 구성 최대사이즈 64 */
-	int fd_index;                       /* fdt의 오픈 지점 인덱스 */
+	struct file			**fdt;					/* file descriptor table: file구조체의 포인터로 구성 최대사이즈 64 */
+	int					fd_index;				/* fdt의 오픈 지점 인덱스 */
 
-	struct file *runn_file;               /* 현재 실행 중인 프로세스가 실행 중인 파일*/
+	struct file			*runn_file;				/* 현재 실행 중인 프로세스가 실행 중인 파일*/
+	
+	//project 3
+	// vm
 	
 
-#ifdef USERPROG //만약 USERPROG매크로가 정의되있다면
+#ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
-	struct supplemental_page_table spt;
+	struct supplemental_page_table	spt;
 #endif
 
 	/* Owned by thread.c. */
-	struct intr_frame tf;               /* Information for switching : 재개를 위해? */
-	unsigned magic;                     /* Detects stack overflow. : thread_current()가 현재 스레드내 magic멤버가 THREAD_MAGIC인지 확인한다.*/
+	struct intr_frame	tf;						/* Information for switching : 재개를 위해? */
+	unsigned			magic;					/* Detects stack overflow. : thread_current()가 현재 스레드내 magic멤버가 THREAD_MAGIC인지 확인한다.*/
 };
 
 /* If false (default), use round-robin scheduler.

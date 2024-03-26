@@ -46,6 +46,7 @@ syscall_init (void) {
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 	lock_init(&file_lock);
+	lock_init(&read_lock);
 }
 
 /* The main system call interface */
@@ -206,9 +207,9 @@ int read (int fd, void *buffer, unsigned length) {
 		if(fileobj == NULL)
 			return -1;
 
-		lock_acquire(&file_lock);
+		lock_acquire(&read_lock);
 		ret = file_read(fileobj,buffer,length);
-		lock_release(&file_lock);
+		lock_release(&read_lock);
 	}
 	return ret;
 }

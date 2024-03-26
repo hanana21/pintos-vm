@@ -18,14 +18,17 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
-#ifdef VM
+// #ifdef VM
 #include "vm/vm.h"
-#endif
+
+// #endif
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
+
+static bool lazy_load_segment (struct page *page, void *aux UNUSED);
 
 /* General process initializer for initd and other process. */
 static void
@@ -695,6 +698,15 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct file_info	*file_info = (struct file_info *)aux;
+	uint8_t				*kpage = page->frame->kva;
+
+	if (file_read (file_info->file, kpage, file_info->read_bytes) != (int) file_info->read_bytes) {
+		palloc_free_page (kpage);
+		return false;
+	}
+
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -725,8 +737,16 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		struct file_info *file_info = (struct file_info *)malloc(sizeof(struct file_info));
+		if (!file_info) {
+			printf("load_segment Malloc Error\n");
+			return false;
+		}
+		file_info->file = file;
+		file_info->read_bytes = page_read_bytes;
+
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		void *aux = file_info;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
@@ -749,6 +769,10 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+	success = vm_alloc_page (PAL_USER | VM_MARKER_0, stack_bottom, 1);
+	// uint8_t *kpage;
+	success = vm_claim_page(stack_bottom);
+	if_->rsp = USER_STACK;
 
 	return success;
 }

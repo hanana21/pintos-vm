@@ -24,6 +24,7 @@ typedef int off_t;
 #define EXIT_FAILURE 1          /* Unsuccessful execution. */
 
 struct lock file_lock;
+struct lock read_lock;
 void syscall_init (void);
 
 void halt (void) NO_RETURN;
