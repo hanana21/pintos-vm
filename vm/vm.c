@@ -64,8 +64,18 @@ err:
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	struct hash_elem *e;
 
+	page = malloc(sizeof(struct page));
+	page -> va = va;
+
+	e = hash_find(&spt,&page->h_elem);
+
+	if(e != NULL)
+		page = hash_entry(e,struct page,h_elem);
+	else
+		return NULL;
+		
 	return page;
 }
 
@@ -75,7 +85,8 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-
+	if (hash_insert(&spt,&page->h_elem) == NULL)
+		succ = true;
 	return succ;
 }
 
@@ -112,6 +123,14 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	void *padd = palloc_get_page(PAL_USER); // 새로운 물리 주소 받아옴 
+
+	if(padd == NULL){
+		PANIC("todo");
+	}
+
+	frame = malloc(sizeof(struct frame));
+	frame -> kva = padd;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -154,6 +173,9 @@ vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
 
+	page = spt_find_page(thread_current()->spt,va);
+	if (page == NULL)
+		return false;
 	return vm_do_claim_page (page);
 }
 
@@ -167,15 +189,16 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-
+	struct thread *curr = thread_current();
+	pml4_set_page(curr->pml4,page->va,frame->kva,page->writable);
 	return swap_in (page, frame->kva);
 }
 
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	hash_init (spt,page_hash,page_less,NULL);
 }
-
 /* Copy supplemental page table from src to dst */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
@@ -187,4 +210,15 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+void page_hash(const struct hash_elem *p_, void *aux UNUSED){
+	struct page *p = hash_entry(p_,struct page,h_elem);
+
+	return hash_bytes(p->va,sizeof(p->va));
+}
+bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux){
+	struct page *page_a = hash_entry(a,struct page,h_elem);
+	struct page *page_b = hash_entry(b,struct page,h_elem);
+
+	return page_a->va < page_b->va;
 }

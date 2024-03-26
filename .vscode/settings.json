@@ -7,6 +7,7 @@
         "flags.h": "c",
         "gdt.h": "c",
         "thread.h": "c",
-        "file.h": "c"
+        "file.h": "c",
+        "hash.h": "c"
     }
 }
