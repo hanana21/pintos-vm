@@ -8,6 +8,7 @@
         "gdt.h": "c",
         "thread.h": "c",
         "file.h": "c",
-        "hash.h": "c"
+        "hash.h": "c",
+        "vm.h": "c"
     }
 }

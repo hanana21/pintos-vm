@@ -6,10 +6,18 @@
 #include <stdint.h>
 #include "threads/interrupt.h"
 #include "threads/synch.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
 
+// project 3
+struct lazy_load_arg{
+    struct file *file;
+    int32_t offset;
+    size_t read_bytes;
+	size_t zero_bytes;
+};
 
 /* States in a thread's life cycle. : 쓰레드의 상태*/
 enum thread_status {

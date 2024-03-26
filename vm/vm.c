@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "threads/vaddr.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -53,8 +54,22 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
+		struct page *p = (struct page*)malloc(sizeof(struct page));
+		bool (*page_initializer)(struct page *, enum vm_type, void *);
 
+		switch (VM_TYPE(type)){
+		case VM_ANON: 
+			page_initializer = anon_initializer;
+			break;
+		
+		case VM_FILE:
+			page_initializer = file_backed_initializer;
+			break;
+		}
+		uninit_new(p,upage,init,type,aux,page_initializer);
+		p -> writable = writable;
 		/* TODO: Insert the page into the spt. */
+		return spt_insert_page(spt,p);
 	}
 err:
 	return false;
@@ -155,8 +170,18 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-
-	return vm_do_claim_page (page);
+	if (is_kernel_vaddr(addr) && addr == NULL)
+		return false;
+	
+	if(not_present){
+		page = spt_find_page(spt,addr);
+		if (page == NULL)
+			return false;
+		if (write == 1 && page -> writable == 0) 
+			return false; 	
+		return vm_do_claim_page (page);		
+	}
+	return false;
 }
 
 /* Free the page.
@@ -173,7 +198,7 @@ vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
 
-	page = spt_find_page(thread_current()->spt,va);
+	page = spt_find_page(&thread_current()->spt,va);
 	if (page == NULL)
 		return false;
 	return vm_do_claim_page (page);
