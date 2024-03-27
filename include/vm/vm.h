@@ -114,6 +114,7 @@ bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED);
 bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux);
+void hash_page_destroy(struct hash_elem *e,void *aux);
 
 struct list frame_table;
 #endif  /* VM_VM_H */

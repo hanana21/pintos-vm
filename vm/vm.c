@@ -84,10 +84,11 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	page = (struct page *)malloc(sizeof(struct page));
 	struct hash_elem *e;
 	page -> va = pg_round_down(va);
+	//page -> va = va;
 	//printf("spt find page spt_ hash : %p\n", spt->spt_hash);
 	//printf("spt find page spt_ page hash elem: %p\n", page->h_elem);
 	e = hash_find(&spt->spt_hash,&page->h_elem);
-	free(page);
+	//free(page);
 
 	//printf("spt find page hash find \n");
 	return e != NULL ? hash_entry(e,struct page,h_elem) : NULL;
@@ -230,8 +231,29 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
 }
 /* Copy supplemental page table from src to dst */
 bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,struct supplemental_page_table *src UNUSED) {
+	struct hash_iterator i;
+	hash_first(&i,&src->spt_hash);
+	while(hash_next(&i)){
+		struct page *src_page = hash_entry(hash_cur(&i),struct page,h_elem);
+		enum vm_type type = src_page -> operations -> type;
+		void *upage = src_page -> va;
+		bool writable = src_page -> writable;
+
+		if(type == VM_UNINIT){
+			vm_initializer *init = src_page->uninit.init;
+			void *aux = src_page->uninit.aux;
+			vm_alloc_page_with_initializer(VM_ANON,upage,writable,init,aux);
+			continue;
+		}
+		if(!vm_alloc_page(type,upage,writable))
+			return false;
+		if(!vm_claim_page(upage))
+			return false;
+		struct page *dst_page = spt_find_page(dst,upage);
+		memcpy(dst_page->frame->kva,src_page->frame->kva,PGSIZE);
+	}
+	return true;
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -239,6 +261,7 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	hash_clear(&spt->spt_hash,hash_page_destroy);
 }
 unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED){
 	struct page *p = hash_entry(p_,struct page,h_elem);
@@ -250,4 +273,9 @@ bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux){
 	struct page *page_b = hash_entry(b,struct page,h_elem);
 
 	return page_a->va < page_b->va;
+}
+void hash_page_destroy(struct hash_elem *e,void *aux){
+	struct page *page = hash_entry(e,struct page,h_elem);
+	//destroy(page);
+	free(page);
 }
