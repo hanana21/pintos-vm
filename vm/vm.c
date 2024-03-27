@@ -17,8 +17,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	list_init(&frame_table);
 }
-
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
  * This function is fully implemented now. */
@@ -46,11 +46,12 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
 
 	ASSERT (VM_TYPE(type) != VM_UNINIT)
-
+	//printf("########vm_alloc_page_with_initializer 진입\n");
 	struct supplemental_page_table *spt = &thread_current ()->spt;
-
+	//printf("########vm_alloc_page_with_initializer ADDR : %p\n", upage);
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
+		//printf("########vm_alloc_page_with_initializer SPT FIND FAGE == NULL\n");
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
@@ -79,19 +80,17 @@ err:
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
+	//printf("spt find page 진입 \n");
+	page = (struct page *)malloc(sizeof(struct page));
 	struct hash_elem *e;
+	page -> va = pg_round_down(va);
+	//printf("spt find page spt_ hash : %p\n", spt->spt_hash);
+	//printf("spt find page spt_ page hash elem: %p\n", page->h_elem);
+	e = hash_find(&spt->spt_hash,&page->h_elem);
+	free(page);
 
-	page = malloc(sizeof(struct page));
-	page -> va = va;
-
-	e = hash_find(&spt,&page->h_elem);
-
-	if(e != NULL)
-		page = hash_entry(e,struct page,h_elem);
-	else
-		return NULL;
-		
-	return page;
+	//printf("spt find page hash find \n");
+	return e != NULL ? hash_entry(e,struct page,h_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
@@ -100,7 +99,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-	if (hash_insert(&spt,&page->h_elem) == NULL)
+	if (hash_insert(&spt->spt_hash,&page->h_elem) == NULL)
 		succ = true;
 	return succ;
 }
@@ -138,14 +137,15 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	void *padd = palloc_get_page(PAL_USER); // 새로운 물리 주소 받아옴 
+	void *kva = palloc_get_page(PAL_USER); // 새로운 물리 주소 받아옴 
 
-	if(padd == NULL){
+	if(kva == NULL){
 		PANIC("todo");
 	}
 
-	frame = malloc(sizeof(struct frame));
-	frame -> kva = padd;
+	frame = (struct frame *)malloc(sizeof(struct frame));
+	frame -> kva = kva;
+	frame -> page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -170,10 +170,12 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	//printf("vm try handle fault addr : %p\n", addr);
 	if (is_kernel_vaddr(addr) && addr == NULL)
 		return false;
 	
 	if(not_present){
+		//printf("vm try handle fault not present\n");
 		page = spt_find_page(spt,addr);
 		if (page == NULL)
 			return false;
@@ -221,8 +223,10 @@ vm_do_claim_page (struct page *page) {
 
 /* Initialize new supplemental page table */
 void
-supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
-	hash_init (spt,page_hash,page_less,NULL);
+supplemental_page_table_init (struct supplemental_page_table *spt) {
+
+	hash_init (&spt->spt_hash,page_hash,page_less,NULL);
+
 }
 /* Copy supplemental page table from src to dst */
 bool
@@ -236,10 +240,10 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 }
-void page_hash(const struct hash_elem *p_, void *aux UNUSED){
+unsigned page_hash(const struct hash_elem *p_, void *aux UNUSED){
 	struct page *p = hash_entry(p_,struct page,h_elem);
 
-	return hash_bytes(p->va,sizeof(p->va));
+	return hash_bytes(&p->va,sizeof(p->va));
 }
 bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux){
 	struct page *page_a = hash_entry(a,struct page,h_elem);

@@ -438,7 +438,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	off_t file_ofs;
 	bool success = false;
 	int i;
-
+	//printf("load 진입\n");
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
@@ -448,7 +448,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Open executable file. */
 	file = filesys_open (file_name);
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", file_name);
+		//printf ("load: %s: open failed\n", file_name);
 		//printf ("load: %d: 처음 석세스\n", success);
 		goto done;
 	}
@@ -463,7 +463,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
-		printf ("load: %s: error loading executable\n", file_name);
+		//printf ("load: %s: error loading executable\n", file_name);
 		goto done;
 	}
 
@@ -510,9 +510,14 @@ load (const char *file_name, struct intr_frame *if_) {
 						read_bytes = 0;
 						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
 					}
+					//printf("load load segment 직전\n");
 					if (!load_segment (file, file_page, (void *) mem_page,
-								read_bytes, zero_bytes, writable))
+								read_bytes, zero_bytes, writable)){
+								//printf("load load segment 직후\n");
+								
 						goto done;
+								}
+
 				}
 				else
 					goto done;
@@ -524,6 +529,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	if (!setup_stack (if_))
 		goto done;
 
+	//printf("load setup stack 이후\n");
 	/* Start address. : 시작 주소*/
 	if_->rip = ehdr.e_entry;
 
@@ -637,7 +643,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* Add the page to the process's address space. */
 		if (!install_page (upage, kpage, writable)) {
-			printf("fail\n");
+			//printf("fail\n");
 			palloc_free_page (kpage);
 			return false;
 		}
@@ -741,16 +747,18 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		struct lazy_load_arg *aux = (struct lazy_load_arg*)malloc(sizeof(struct lazy_load_arg));
-
+		//printf("#############load segment 1111111#################\n");
 		aux -> file = file;
 		aux ->offset = ofs;
 		aux ->read_bytes = page_read_bytes;
 		aux ->zero_bytes = page_zero_bytes;
-
+		//printf("#############load segment 2222222#################\n");
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+					writable, lazy_load_segment, aux)){
+						//printf("#############load segment 333333################\n");
+					
 			return false;
-
+					}
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;

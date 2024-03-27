@@ -121,6 +121,7 @@ hash_replace (struct hash *h, struct hash_elem *new) {
    null pointer if no equal element exists in the table. */
 struct hash_elem *
 hash_find (struct hash *h, struct hash_elem *e) {
+	//printf("hash find\n");
 	return find_elem (h, find_bucket (h, e), e);
 }
 
@@ -279,7 +280,12 @@ hash_int (int i) {
 /* Returns the bucket in H that E belongs in. */
 static struct list *
 find_bucket (struct hash *h, struct hash_elem *e) {
+	//printf("find bucket\n");
+	//printf("find bucket h hash: %p\n", h->hash);
+	//printf("find bucket h->aux: %p\n",h->aux);
+	//printf("find bucket h->bucket_cnt: %p\n",h->bucket_cnt);
 	size_t bucket_idx = h->hash (e, h->aux) & (h->bucket_cnt - 1);
+	//printf("find bucket\n");
 	return &h->buckets[bucket_idx];
 }
 
@@ -288,7 +294,7 @@ find_bucket (struct hash *h, struct hash_elem *e) {
 static struct hash_elem *
 find_elem (struct hash *h, struct list *bucket, struct hash_elem *e) {
 	struct list_elem *i;
-
+	//printf("find elem 진입\n");
 	for (i = list_begin (bucket); i != list_end (bucket); i = list_next (i)) {
 		struct hash_elem *hi = list_elem_to_hash_elem (i);
 		if (!h->less (hi, e, h->aux) && !h->less (e, hi, h->aux))
