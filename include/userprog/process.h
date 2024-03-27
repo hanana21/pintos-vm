@@ -11,4 +11,13 @@ void process_exit (void);
 void process_activate (struct thread *next);
 struct thread *get_child_process(int pid);
 
+struct lazy_parameter
+{
+    struct file *file;
+    off_t ofs;
+    uint8_t *upage;
+	uint32_t read_bytes;
+    uint32_t zero_bytes;
+    
+};
 #endif /* userprog/process.h */

@@ -1,4 +1,5 @@
 #include "userprog/process.h"
+#include "threads/synch.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -685,7 +686,7 @@ install_page (void *upage, void *kpage, bool writable) {
 	return (pml4_get_page (t->pml4, upage) == NULL
 			&& pml4_set_page (t->pml4, upage, kpage, writable));
 }
-#else
+//#else
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
@@ -695,6 +696,18 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct lazy_parameter* params = (struct lazy_parameter *)aux;
+
+	if (params->file == NULL)
+	{
+		return false;
+	}
+
+	file_seek(params->file, params->ofs);
+	file_read(params->file, params->upage, params->read_bytes);
+	memset(params->upage + params->read_bytes, 0, params->zero_bytes);
+	return true;
+
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -726,7 +739,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct lazy_parameter *aux = malloc(sizeof(struct lazy_parameter));
+		aux->file = file;
+		aux->ofs = ofs;
+		aux->read_bytes = page_read_bytes;
+		aux->zero_bytes = page_zero_bytes;
+		aux->upage = upage;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
