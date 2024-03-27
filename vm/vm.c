@@ -59,33 +59,26 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 {
 
 	ASSERT(VM_TYPE(type) != VM_UNINIT)
-	struct page* page;
+	struct page *page;
 	struct supplemental_page_table *spt = &thread_current()->spt;
 	bool (*initializer)(struct page *, enum vm_type, void *);
 	bool success;
-
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page(spt, upage) == NULL)
 	{
 		/* TODO: Create the page, fetch the initialier according to the VM type,
-		
+
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
-		 
+
 		 * TODO: should modify the field after calling the uninit_new. */
 
 		/* TODO: Insert the page into the spt. */
 		page = malloc(sizeof(struct page));
-		initializer = (VM_TYPE(type) == VM_ANON) ? anon_initializer : file_backed_initializer;
+		initializer = (type == VM_ANON) ? anon_initializer : file_backed_initializer;
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
-		success = spt_insert_page(spt, page);
-		if(init)
-		{
-			init(page, aux);
-		}
-		
-		return success;
-
+		spt_insert_page(spt, page);
+		return true;
 	}
 err:
 	return false;
@@ -95,16 +88,12 @@ err:
 struct page *
 spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
 {
-	struct page *page = NULL;
 	struct page p;
-	struct hash_elem *h_el;
+	struct hash_elem *e;
+
 	p.va = va;
-	h_el = hash_find(&spt->hash, &p.spt_hash_elem);
-	if (h_el != NULL)
-	{
-		page = hash_entry(h_el, struct page, spt_hash_elem);
-	}
-	return page;
+	e = hash_find(&spt->hash, &p.spt_hash_elem);
+	return e != NULL ? hash_entry(e, struct page, spt_hash_elem) : NULL;
 }
 
 /* Insert PAGE into spt with validation. */
@@ -112,19 +101,20 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 					 struct page *page UNUSED)
 {
 	int succ = false;
-	struct hash_elem* result;
-	if(spt_find_page(spt, page->va))
+	struct hash_elem *result;
+	if (spt_find_page(spt, page->va))
 	{
 		return false;
-	}	
-
-	result = hash_insert(&spt->hash, &page->spt_hash_elem);
-
-	if(result ==NULL)
-	{
-		succ = true;
 	}
-	return succ;
+
+	return hash_insert(&spt->hash, &page->spt_hash_elem);
+
+// 	if (result == NULL)
+// 	{
+// 		printf("hihihih22222i\n");
+// 		succ	= true;
+// 	}
+// 	return succ;
 }
 
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
@@ -140,7 +130,7 @@ vm_get_victim(void)
 	struct frame *victim = NULL;
 
 	/* TODO: The policy for eviction is up to you. */
-	
+
 	return victim;
 }
 
@@ -164,8 +154,8 @@ vm_get_frame(void)
 {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	void* newpage = palloc_get_page(PAL_USER);
-	if(!newpage)
+	void *newpage = palloc_get_page(PAL_USER);
+	if (!newpage)
 	{
 		PANIC("to do");
 	}
@@ -199,15 +189,15 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 	page = spt_find_page(&thread_current()->spt, pg_round_down(addr));
-	if(page ==NULL)
+	if (page == NULL)
 	{
 		return false;
 	}
-	if(is_kernel_vaddr(addr) || is_kernel_vaddr(page->va))
+	if (is_kernel_vaddr(addr) || is_kernel_vaddr(page->va))
 	{
 		return false;
 	}
-	
+
 	return vm_do_claim_page(page);
 }
 
@@ -240,12 +230,11 @@ bool vm_do_claim_page(struct page *page)
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	success= pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
+	success = pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
 	if (!success)
 		return false;
 	return swap_in(page, frame->kva);
 }
-
 
 /* returns a hash value for page p*/
 unsigned spt_hash(const struct hash_elem *h_el, void *aux UNUSED)
@@ -280,3 +269,77 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 }
+
+// void print_spt(void) {
+//     struct hash *h = &thread_current()->spt.spt_hash;
+//     struct hash_iterator i;
+//     printf("==================== {%s} SUP. PAGE TABLE (%d entries) =====================\n", thread_current()->name, hash_size(h));
+//     printf("   USER VA    | KERN VA (PA) |     TYPE     | STK | WRT | DRT(K/U) |   ofs  |  PRS  \n");
+//     void *va, *kva;
+//     enum vm_type type;
+//     char *type_str, *stack_str, *writable_str, *dirty_k_str, *dirty_u_str;
+//     stack_str = " - ";
+//     hash_first (&i, h);
+//     struct page *page;
+//     // uint64_t *pte;
+//     while (hash_next (&i)) {
+//         page = hash_entry (hash_cur (&i), struct page, h_elem);
+//         file_info *f_info;
+//         if (page->uninit.aux)
+//             f_info = page->uninit.aux;
+//         else
+//             f_info->ofs = 0;
+//         va = page->va;
+//         if (page->frame) {
+//             kva = page->frame->kva;
+//             // pte = pml4e_walk(thread_current()->pml4, page->va, 0);
+//             writable_str = pg_ofs (page->va) & PTE_W ? "YES" : "NO";
+//             // dirty_str = pml4_is_dirty(thread_current()->pml4, page->va) ? "YES" : "NO";
+//             dirty_k_str = pg_ofs (page->va) & PTE_D ? "YES" : "NO";
+//             dirty_u_str = pg_ofs (page->frame->kva) & PTE_D ? "YES" : "NO";
+//         } else {
+//             kva = NULL;
+//             dirty_k_str = " - ";
+//             dirty_u_str = " - ";
+//         }
+//         type = page->operations->type;
+//         if (VM_TYPE(type) == VM_UNINIT) {
+//             type = page->uninit.type;
+//             switch (VM_TYPE(type)) {
+//                 case VM_ANON:
+//                     type_str = "UNINIT-ANON";
+//                     break;
+//                 case VM_FILE:
+//                     type_str = "UNINIT-FILE";
+//                     break;
+//                 case VM_PAGE_CACHE:
+//                     type_str = "UNINIT-P.C.";
+//                     break;
+//                 default:
+//                     type_str = "UNKNOWN (#)";
+//                     type_str[9] = VM_TYPE(type) + 48; // 0~7 사이 숫자의 아스키 코드
+//             }
+//             // stack_str = type & IS) ? "YES" : "NO";
+//             writable_str = (uint64_t)page->va & PTE_W ? "(Y)" : "(N)";
+//         } else {
+//             stack_str = "NO";
+//             switch (VM_TYPE(type)) {
+//                 case VM_ANON:
+//                     type_str = "ANON";
+//                     // stack_str = page->anon.is_stack ? "YES" : "NO";
+//                     break;
+//                 case VM_FILE:
+//                     type_str = "FILE";
+//                     break;
+//                 case VM_PAGE_CACHE:
+//                     type_str = "PAGE CACHE";
+//                     break;
+//                 default:
+//                     type_str = "UNKNOWN (#)";
+//                     type_str[9] = VM_TYPE(type) + 48; // 0~7 사이 숫자의 아스키 코드
+//             }
+//         }
+//         printf(" %12p | %12p | %12s | %3s | %3s |  %3s/%3s | %6d | %6d \n",
+//                va, kva, type_str, stack_str, writable_str, dirty_k_str, dirty_u_str, f_info->ofs, pg_ofs (page->va) & PTE_P);
+//     }
+// }
