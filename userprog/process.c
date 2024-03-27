@@ -730,7 +730,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
-
+	int count = 0;
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
@@ -741,7 +741,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		struct lazy_parameter *aux = malloc(sizeof(struct lazy_parameter));
 		aux->file = file;
-		aux->ofs = ofs;
+		aux->ofs = ofs +count * PGSIZE;
 		aux->read_bytes = page_read_bytes;
 		aux->zero_bytes = page_zero_bytes;
 		aux->upage = upage;
@@ -753,6 +753,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		count++;
 	}
 	return true;
 }
@@ -767,7 +768,13 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-
+	struct page* page = palloc_get_page(PAL_USER);
+	success = vm_do_claim_page(page);
+	if(success)
+	{
+		if_->rsp = stack_bottom;
+		page->is_stack =true;
+	}
 	return success;
 }
 #endif /* VM */

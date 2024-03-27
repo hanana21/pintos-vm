@@ -44,7 +44,7 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
-	
+	bool is_stack;
 
 	/* Your implementation */
 	struct hash_elem spt_hash_elem;
