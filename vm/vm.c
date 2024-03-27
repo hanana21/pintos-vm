@@ -5,6 +5,10 @@
 #include "vm/inspect.h"
 #include <hash.h>
 #include "threads/mmu.h"
+#include "threads/synch.h"
+
+struct lock hash_lock;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void vm_init(void)
@@ -17,6 +21,7 @@ void vm_init(void)
 	register_inspect_intr();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	lock_init(&hash_lock);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -37,7 +42,7 @@ page_get_type(struct page *page)
 
 /* Helpers */
 static struct frame *vm_get_victim(void);
-static bool vm_do_claim_page(struct page *page);
+bool vm_do_claim_page(struct page *page);
 static struct frame *vm_evict_frame(void);
 
 /* Create the pending page object with initializer. If you want to create a
@@ -70,10 +75,15 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 
 		/* TODO: Insert the page into the spt. */
 		page = malloc(sizeof(struct page));
-		initializer = type == VM_ANON ? anon_initializer : file_backed_initializer;
+		initializer = (VM_TYPE(type) == VM_ANON) ? anon_initializer : file_backed_initializer;
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
 		success = spt_insert_page(spt, page);
+		if(init)
+		{
+			init(page, aux);
+		}
+		
 		return success;
 
 	}
@@ -102,7 +112,14 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 					 struct page *page UNUSED)
 {
 	int succ = false;
-	struct hash_elem* result = hash_insert(&spt->hash, &page->spt_hash_elem);
+	struct hash_elem* result;
+	if(spt_find_page(spt, page->va))
+	{
+		return false;
+	}	
+
+	result = hash_insert(&spt->hash, &page->spt_hash_elem);
+
 	if(result ==NULL)
 	{
 		succ = true;
@@ -181,7 +198,16 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-
+	page = spt_find_page(&thread_current()->spt, pg_round_down(addr));
+	if(page ==NULL)
+	{
+		return false;
+	}
+	if(is_kernel_vaddr(addr) || is_kernel_vaddr(page->va))
+	{
+		return false;
+	}
+	
 	return vm_do_claim_page(page);
 }
 
@@ -200,13 +226,12 @@ bool vm_claim_page(void *va UNUSED)
 	/* TODO: Fill this function */
 	page = malloc(sizeof(struct page));
 	page->va = va;
-	
+	spt_insert_page(&thread_current()->spt, page);
 	return vm_do_claim_page(page);
 }
 
 /* Claim the PAGE and set up the mmu. */
-static bool
-vm_do_claim_page(struct page *page)
+bool vm_do_claim_page(struct page *page)
 {
 	struct frame *frame = vm_get_frame();
 	bool success;
