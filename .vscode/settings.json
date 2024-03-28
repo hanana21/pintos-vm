@@ -9,6 +9,7 @@
         "thread.h": "c",
         "file.h": "c",
         "round.h": "c",
-        "hash.h": "c"
+        "hash.h": "c",
+        "palloc.h": "c"
     }
 }

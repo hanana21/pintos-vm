@@ -791,10 +791,11 @@ setup_stack(struct intr_frame *if_)
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	success = vm_alloc_page(VM_ANON, stack_bottom, true) && vm_claim_page(stack_bottom);
+	success = vm_alloc_page(VM_ANON, stack_bottom, true); //&& vm_claim_page(stack_bottom);
 	if (success)
 	{
-		if_->rsp = stack_bottom;
+		if_->rsp = USER_STACK;
+		//if_->rsp = stack_bottom;
 	}
 	return success;
 }

@@ -63,7 +63,7 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 	struct supplemental_page_table *spt = &thread_current()->spt;
 	bool (*initializer)(struct page *, enum vm_type, void *);
 	bool success;
-	printf("upage: %p, %s\n",upage, thread_name());
+	//printf("upage: %p, %s\n",upage, thread_name());
 
 
 	/* Check wheter the upage is already occupied or not. */
@@ -115,13 +115,6 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 	}
 
 	return !hash_insert(&spt->hash, &page->spt_hash_elem);
-
-// 	if (result == NULL)
-// 	{
-// 		printf("hihihih22222i\n");
-// 		succ	= true;
-// 	}
-// 	return succ;
 }
 
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)

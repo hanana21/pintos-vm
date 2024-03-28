@@ -206,7 +206,10 @@ int read (int fd, void *buffer, unsigned length) {
 
 		if(fileobj == NULL)
 			return -1;
-
+struct page *page = spt_find_page(&thread_current()->spt, buffer);
+        if (page && !page->writable){
+            exit(-1);
+        }
 		lock_acquire(&file_lock);
 		ret = file_read(fileobj,buffer,length);
 		lock_release(&file_lock);
