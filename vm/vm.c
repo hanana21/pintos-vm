@@ -63,8 +63,11 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 	struct supplemental_page_table *spt = &thread_current()->spt;
 	bool (*initializer)(struct page *, enum vm_type, void *);
 	bool success;
+	printf("upage: %p, %s\n",upage, thread_name());
+
+
 	/* Check wheter the upage is already occupied or not. */
-	if (spt_find_page(spt, upage) == NULL)
+	if (!spt_find_page(spt, upage))
 	{
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 
@@ -74,23 +77,28 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 
 		/* TODO: Insert the page into the spt. */
 		page = malloc(sizeof(struct page));
-		initializer = (type == VM_ANON) ? anon_initializer : file_backed_initializer;
+		initializer = (VM_TYPE(type) == VM_ANON) ? anon_initializer : file_backed_initializer;
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
 		spt_insert_page(spt, page);
+		printf("kkkkkkkkkkkkkkkkk\n");
 		return true;
 	}
+	// struct page *inspect_p = spt_find_page(spt, upage);
+	// if (inspect_p != NULL) {
+	// 	printf ("%p\n\n", inspect_p->va);
+	// }
 err:
 	return false;
 }
 
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
-spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
+spt_find_page(struct supplemental_page_table *spt, void *va)
 {
 	struct page p;
 	struct hash_elem *e;
-
+	
 	p.va = va;
 	e = hash_find(&spt->hash, &p.spt_hash_elem);
 	return e != NULL ? hash_entry(e, struct page, spt_hash_elem) : NULL;
@@ -107,7 +115,7 @@ bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
 		return false;
 	}
 
-	return hash_insert(&spt->hash, &page->spt_hash_elem);
+	return !hash_insert(&spt->hash, &page->spt_hash_elem);
 
 // 	if (result == NULL)
 // 	{
@@ -240,19 +248,20 @@ bool vm_do_claim_page(struct page *page)
 unsigned spt_hash(const struct hash_elem *h_el, void *aux UNUSED)
 {
 	const struct page *p = hash_entry(h_el, struct page, spt_hash_elem);
-	return hash_bytes(&p->va, sizeof p->va);
+	printf ("%p in spt_hash\n\n", p->va);
+	return hash_bytes(&p->va, sizeof(p->va));
 }
 
 /*returns true if page current precedes page compare*/
 bool spt_less(const struct hash_elem *curr, const struct hash_elem *cmp, void *aux UNUSED)
 {
 	const struct page *current = hash_entry(curr, struct page, spt_hash_elem);
-	const struct page *compare = hash_entry(curr, struct page, spt_hash_elem);
+	const struct page *compare = hash_entry(cmp, struct page, spt_hash_elem);
 	return current->va < compare->va;
 }
 
 /* Initialize new supplemental page table */
-void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
+void supplemental_page_table_init(struct supplemental_page_table *spt)
 {
 	hash_init(&spt->hash, spt_hash, spt_less, NULL);
 }

@@ -44,7 +44,6 @@ process_init(void)
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t process_create_initd(const char *file_name)
 {
-	printf("really\n");
 	char *fn_copy;
 	tid_t tid;
 	char *save_ptr;
@@ -55,20 +54,15 @@ tid_t process_create_initd(const char *file_name)
 	printf("why does it not work?\n");
 	if (fn_copy == NULL)
 		return TID_ERROR;
-	printf("plz\n");	
 	strlcpy(fn_copy, file_name, PGSIZE);
-	printf("let\n");
 	strtok_r(file_name, " ", &save_ptr);
-	printf("me\n");
 	// printf("이거 filname => %s",file_name);
 	// printf("이거 fn_copy => %s",fn_copy);
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
-	printf("out\n");
 	if (tid == TID_ERROR)
 		palloc_free_page(fn_copy);
-	printf("bye\n");
 	return tid;
 }
 
@@ -84,15 +78,11 @@ initd(void *f_name)
 #endif
 
 	process_init();
-	printf("hmmmm\n");
 	if (process_exec(f_name) < 0)
 	{
 		// printf("its here!!!!!!!!!!\n");
 		PANIC("Fail to launch initd\n");
-		printf("whats da matter\n");
 	}
-
-	printf("hmmmm????\n");
 	NOT_REACHED();
 }
 
@@ -470,29 +460,22 @@ load(const char *file_name, struct intr_frame *if_)
 	off_t file_ofs;
 	bool success = false;
 	int i;
-	// printf("여기서 다시 시작\n");
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create();
 	if (t->pml4 == NULL)
 		goto done;
-	// printf("흠\n");
 	process_activate(thread_current());
-	// printf("흠???\n");
 	/* Open executable file. */
 	file = filesys_open(file_name);
-	// printf("여기야??????????????????????????????????\n");
 	// printf("%d\n",file);
 	if (file == NULL)
 	{
-		// printf("여긴 들어오면안돼 !!!\n");
 		printf("load: %s: open failed\n", file_name);
 		// printf ("load: %d: 처음 석세스\n", success);
 		goto done;
 	}
-	// printf("가보자\n");
 	t->runn_file = file;
 	file_deny_write(file);
-	// printf("흠냐리\n");
 	/* Read and verify executable header. */
 	if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\2\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 0x3E // amd64
 		|| ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Phdr) || ehdr.e_phnum > 1024)
@@ -528,7 +511,6 @@ load(const char *file_name, struct intr_frame *if_)
 		case PT_SHLIB:
 			goto done;
 		case PT_LOAD:
-			// printf("여기까진잘와야해 !!  ! !제발\n");
 			if (validate_segment(&phdr, file))
 			{
 				bool writable = (phdr.p_flags & PF_W) != 0;
@@ -538,7 +520,6 @@ load(const char *file_name, struct intr_frame *if_)
 				uint32_t read_bytes, zero_bytes;
 				if (phdr.p_filesz > 0)
 				{
-					// printf("안녕11111\n");
 					/* Normal segment.
 					 * Read initial part from disk and zero the rest. */
 					read_bytes = page_offset + phdr.p_filesz;
@@ -548,7 +529,6 @@ load(const char *file_name, struct intr_frame *if_)
 				{
 					/* Entirely zero.
 					 * Don't read anything from disk. */
-					// printf("안녕222222\n");
 					read_bytes = 0;
 					zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
 				}
@@ -564,7 +544,6 @@ load(const char *file_name, struct intr_frame *if_)
 			break;
 		}
 	}
-	printf("잘오는거같은데\n");
 	/* Set up stack. => user stack? */
 	if (!setup_stack(if_))
 		goto done;
@@ -746,19 +725,13 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
 	struct lazy_parameter * params = (struct lazy_parameter *)aux;
-	printf("123\n");
 	if (params->file == NULL)
 		return false;
 	if (params->read_bytes > 0) {
-		printf("4\n");
 		file_seek(params->file, params->ofs);
-		printf("5\n");
 		file_read(params->file, page->frame->kva, params->read_bytes);
-		printf("6\n");
 	}
-	printf("7\n");
 	memset(params->upage + params->read_bytes, 0, params->zero_bytes);
-	printf("8\n");
 	return true;
 }
 
@@ -780,13 +753,11 @@ static bool
 load_segment(struct file *file, off_t ofs, uint8_t *upage,
 			 uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
-	printf("555555\n");
 	ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT(pg_ofs(upage) == 0);
 	ASSERT(ofs % PGSIZE == 0);
 	while (read_bytes > 0 || zero_bytes > 0)
 	{
-		printf("6666544\n");
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
 		 * and zero the final PAGE_ZERO_BYTES bytes. */
@@ -799,7 +770,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		aux->ofs = ofs;
 		aux->read_bytes = page_read_bytes;
 		aux->zero_bytes = page_zero_bytes;
-		//aux->upage = upage;
+		aux->upage = upage;
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
 			return false;
@@ -810,7 +781,6 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		upage += PGSIZE;
 		ofs += page_read_bytes;
 	}
-	printf("asdhjkasdhjkashdjk\n");
 	return true;
 }
 
@@ -818,7 +788,6 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack(struct intr_frame *if_)
 {
-	printf("11111111\n");
 	bool success = false;
 	void *stack_bottom = (void *)(((uint8_t *)USER_STACK) - PGSIZE);
 	/* TODO: Map the stack on stack_bottom and claim the page immediately.
@@ -828,11 +797,8 @@ setup_stack(struct intr_frame *if_)
 	success = vm_alloc_page(VM_ANON, stack_bottom, true) && vm_claim_page(stack_bottom);
 	if (success)
 	{
-		printf("22222222\n");
 		if_->rsp = stack_bottom;
-		printf("333333\n");
 	}
-	printf("444444\n");
 	return success;
 }
 #endif /* VM */
