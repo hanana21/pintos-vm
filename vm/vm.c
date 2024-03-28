@@ -81,7 +81,6 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
 		spt_insert_page(spt, page);
-		printf("kkkkkkkkkkkkkkkkk\n");
 		return true;
 	}
 	// struct page *inspect_p = spt_find_page(spt, upage);
@@ -248,7 +247,6 @@ bool vm_do_claim_page(struct page *page)
 unsigned spt_hash(const struct hash_elem *h_el, void *aux UNUSED)
 {
 	const struct page *p = hash_entry(h_el, struct page, spt_hash_elem);
-	printf ("%p in spt_hash\n\n", p->va);
 	return hash_bytes(&p->va, sizeof(p->va));
 }
 

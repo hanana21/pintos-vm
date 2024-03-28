@@ -51,7 +51,6 @@ tid_t process_create_initd(const char *file_name)
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page(0);
-	printf("why does it not work?\n");
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy(fn_copy, file_name, PGSIZE);
@@ -72,7 +71,6 @@ tid_t process_create_initd(const char *file_name)
 static void
 initd(void *f_name)
 {
-	printf("where?\n");
 #ifdef VM
 	supplemental_page_table_init(&thread_current()->spt);
 #endif
@@ -80,7 +78,6 @@ initd(void *f_name)
 	process_init();
 	if (process_exec(f_name) < 0)
 	{
-		// printf("its here!!!!!!!!!!\n");
 		PANIC("Fail to launch initd\n");
 	}
 	NOT_REACHED();
