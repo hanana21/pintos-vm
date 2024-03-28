@@ -20,7 +20,7 @@ pid_t fork(const char *thread_name, struct intr_frame *f);
 static struct file *find_file_by_fd(int fd);
 int add_file_to_fdt(struct file *file);
 void remove_file_from_fdt(int fd);
-
+void check_writable_addr(const uint64_t *uaddr);
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -104,15 +104,21 @@ syscall_handler (struct intr_frame *f UNUSED) {
 }
 //유효성 체크를 위한 
 void check_address(const uint64_t *useradd){
+	#ifdef VM
+	struct page *page = spt_find_page (&thread_current() -> spt, useradd);
+	if (page == NULL) exit(-1);
+	#endif
+	
 	struct thread *curr = thread_current();
 
-	if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL){
-
+	if(useradd == NULL || !(is_user_vaddr(useradd)||pml4_get_page(curr->pml4,useradd) == NULL)){
 		exit(-1);
-		
 	}
 }
-
+void check_writable_addr(const uint64_t *uaddr){
+	struct page *page = spt_find_page (&thread_current() -> spt, uaddr);
+	if (page == NULL || !page->writable) exit(-1);
+}
 void halt (void) {
 	// therad/init.c 
 	power_off();
@@ -126,6 +132,7 @@ void exit (int status) {
 }
 
 pid_t fork(const char *thread_name, struct intr_frame *f){
+	//check_address(thread_name);
 	return process_fork(thread_name,f);
 }
 
@@ -214,7 +221,6 @@ int read (int fd, void *buffer, unsigned length) {
 }
 
 int write (int fd, const void *buffer, unsigned length) {
-
 	check_address(buffer);
 	int ret;
 
