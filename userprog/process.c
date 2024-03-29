@@ -448,6 +448,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
+/*실행할 프로그램의 binary파일을 메모리에 올리는 역할*/
 static bool
 load(const char *file_name, struct intr_frame *if_)
 {
@@ -458,6 +459,8 @@ load(const char *file_name, struct intr_frame *if_)
 	bool success = false;
 	int i;
 	/* Allocate and activate page directory. */
+	/*각 프로세스가 실행이 될 때, 각 프로세스에 해당하는 VM이 만들어져야하므로 이를 위해 페이지
+	엔트리를 생성하는 과정이 우선*/
 	t->pml4 = pml4_create();
 	if (t->pml4 == NULL)
 		goto done;
@@ -508,6 +511,9 @@ load(const char *file_name, struct intr_frame *if_)
 		case PT_SHLIB:
 			goto done;
 		case PT_LOAD:
+		/*파일을 실제로 vm에 올리는 과정 진행. 파일이 제대로 된 ELF인지 검사하는 과정
+		동반, 세그먼트 단위로 PT_LOAD의 헤더 타입을 가진 부분을 하나씩 메모리로 올리는 작업
+		진행*/
 			if (validate_segment(&phdr, file))
 			{
 				bool writable = (phdr.p_flags & PF_W) != 0;
@@ -541,11 +547,13 @@ load(const char *file_name, struct intr_frame *if_)
 			break;
 		}
 	}
+	/*전부 메모리로 올린 뒤에 스택을 만든다*/
 	/* Set up stack. => user stack? */
 	if (!setup_stack(if_))
 		goto done;
 
 	/* Start address. : 시작 주소*/
+	/*어떤 명령부터 실행되는지 가리키는, 즉, entry point역할의 rip를 설정*/
 	if_->rip = ehdr.e_entry;
 
 	/* TODO: Your code goes here.
@@ -729,6 +737,7 @@ lazy_load_segment (struct page *page, void *aux) {
 		file_read(params->file, page->frame->kva, params->read_bytes);
 	}
 	memset(params->upage + params->read_bytes, 0, params->zero_bytes);
+	free(aux);
 	return true;
 }
 
@@ -780,7 +789,10 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 	}
 	return true;
 }
-
+void
+mark_as_stack(struct page *page, void *aux) {
+	page->is_stack = true;
+}
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack(struct intr_frame *if_)
@@ -791,7 +803,7 @@ setup_stack(struct intr_frame *if_)
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	success = vm_alloc_page(VM_ANON, stack_bottom, true); //&& vm_claim_page(stack_bottom);
+	success =vm_alloc_page_with_initializer(VM_ANON, stack_bottom, true, mark_as_stack, NULL); //&& vm_claim_page(stack_bottom);
 	if (success)
 	{
 		if_->rsp = USER_STACK;

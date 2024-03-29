@@ -80,8 +80,13 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		initializer = (VM_TYPE(type) == VM_ANON) ? anon_initializer : file_backed_initializer;
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
-		spt_insert_page(spt, page);
-		return true;
+		page->is_stack = false;
+		success = spt_insert_page(spt, page);
+		if(!success)
+		{
+			goto err;
+		}
+		return success;
 	}
 	// struct page *inspect_p = spt_find_page(spt, upage);
 	// if (inspect_p != NULL) {
@@ -257,19 +262,47 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 	hash_init(&spt->hash, spt_hash, spt_less, NULL);
 }
 
+void
+copy_spt_hash(struct hash_elem *e, void *aux) {
+	struct supplemental_page_table *dst = (struct supplemental_page_table*)aux;
+	struct page* page_original = hash_entry(e, struct page, spt_hash_elem);
+	struct frame *frame = vm_get_frame();
+	struct page* page_copy = malloc(sizeof(struct page));
+
+	frame->page = page_copy;
+	page_copy->frame = frame;
+	page_copy->va = page_original->va;
+	page_copy->writable = page_original->writable;
+	page_copy->operations = page_original->operations;
+	memcpy(frame->kva, page_original->frame->kva, PGSIZE);
+
+	spt_insert_page(dst, page_copy);
+	pml4_set_page(thread_current()->pml4, page_copy->va, page_copy->frame->kva, page_copy->writable);
+}
+
 /* Copy supplemental page table from src to dst */
-bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-								  struct supplemental_page_table *src UNUSED)
-{
+bool
+supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
+		struct supplemental_page_table *src UNUSED) {
+	src->hash.aux = dst;
+	hash_apply(&src->hash, copy_spt_hash);
+	src->hash.aux = NULL;
+	return true;
+}
+
+void
+kill_spt_hash(struct hash_elem *e, void *aux) {
+	struct page* page = hash_entry(e, struct page, spt_hash_elem);
+	destroy(page);
 }
 
 /* Free the resource hold by the supplemental page table */
-void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
-{
+void
+supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	hash_apply(spt, kill_spt_hash);
 }
-
 // void print_spt(void) {
 //     struct hash *h = &thread_current()->spt.spt_hash;
 //     struct hash_iterator i;
