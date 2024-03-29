@@ -53,6 +53,10 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// printf ("system call!\n");
 	// thread_exit ();
+	#ifdef VM
+		thread_current()->rsp = f->rsp;
+	#endif
+	
 	switch (f->R.rax){
 	case SYS_HALT:
 		halt();
@@ -115,10 +119,10 @@ void check_address(const uint64_t *useradd){
 		exit(-1);
 	}
 }
-void check_writable_addr(const uint64_t *uaddr){
-	struct page *page = spt_find_page (&thread_current() -> spt, uaddr);
-	if (page == NULL || !page->writable) exit(-1);
-}
+// void check_writable_addr(const uint64_t *uaddr){
+// 	struct page *page = spt_find_page (&thread_current() -> spt, uaddr);
+// 	if (page == NULL || !page->writable) exit(-1);
+// }
 void halt (void) {
 	// therad/init.c 
 	power_off();
@@ -144,11 +148,8 @@ int exec (const char *file) {
 	
 	if(file_copy == NULL)
 		exit(-1);
-	
 	strlcpy (file_copy, file, strlen(file)+1);
-	
 	if(process_exec(file_copy) == -1){
-		//printf("여기 넘어오나요?");
 		exit(-1);
 	}
 		

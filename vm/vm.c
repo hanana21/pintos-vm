@@ -156,6 +156,7 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	vm_alloc_page(VM_ANON|VM_MARKER_0,pg_round_down(addr),1);
 }
 
 /* Handle the fault on write_protected page */
@@ -176,7 +177,15 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		return false;
 	
 	if(not_present){
-		//printf("vm try handle fault not present\n");
+		void *rsp = f->rsp;
+		if(!user)
+			rsp = thread_current()->rsp;
+
+		if(USER_STACK- (1<<20) <= rsp && rsp <= addr && addr <= USER_STACK)
+			vm_stack_growth(addr);
+		else if(USER_STACK- (1<<20) <= rsp-8 && rsp-8 == addr && addr <= USER_STACK)
+			vm_stack_growth(addr);
+
 		page = spt_find_page(spt,addr);
 		if (page == NULL)
 			return false;
