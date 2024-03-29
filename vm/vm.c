@@ -81,6 +81,7 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		uninit_new(page, upage, init, type, aux, initializer);
 		page->writable = writable;
 		page->is_stack = false;
+		//printf ("!!!!!!!!!!!!!!!!!addr when insert : %p\n", page->va);
 		success = spt_insert_page(spt, page);
 		if(!success)
 		{
@@ -215,6 +216,7 @@ void vm_dealloc_page(struct page *page)
 }
 
 /* Claim the page that allocate on VA. */
+//고치기
 bool vm_claim_page(void *va UNUSED)
 {
 	struct page *page = NULL;
@@ -245,7 +247,8 @@ bool vm_do_claim_page(struct page *page)
 unsigned spt_hash(const struct hash_elem *h_el, void *aux UNUSED)
 {
 	const struct page *p = hash_entry(h_el, struct page, spt_hash_elem);
-	return hash_bytes(&p->va, sizeof(p->va));
+	void* addr = pg_round_down(p->va);
+	return hash_bytes(&addr, sizeof(p->va));
 }
 
 /*returns true if page current precedes page compare*/
@@ -253,7 +256,7 @@ bool spt_less(const struct hash_elem *curr, const struct hash_elem *cmp, void *a
 {
 	const struct page *current = hash_entry(curr, struct page, spt_hash_elem);
 	const struct page *compare = hash_entry(cmp, struct page, spt_hash_elem);
-	return current->va < compare->va;
+	return pg_round_down(current->va) < pg_round_down(compare->va);
 }
 
 /* Initialize new supplemental page table */

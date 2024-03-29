@@ -102,17 +102,37 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	}
 }
-//비정상적인 주소, 커널 주소 등 접근해서는 안되는 영역에 접근하려고 할때 user process강제종료
+// 비정상적인 주소, 커널 주소 등 접근해서는 안되는 영역에 접근하려고 할때 user process강제종료
 void check_address(const uint64_t *useradd)
 {
 	struct thread *curr = thread_current();
+#ifdef VM
+	struct page *page = spt_find_page(&curr->spt, useradd);
+	if (useradd == NULL || !(is_user_vaddr(useradd)) || page == NULL)
+	{
+		exit(-1);
+	}
+		
 
+#else
 	if (useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4, useradd) == NULL)
 	{
 
 		exit(-1);
 	}
+#endif
 }
+
+// void check_address(const uint64_t *useradd){
+//     #ifdef VM
+//     struct page *page = spt_find_page (&thread_current() -> spt, useradd);
+//     if (page == NULL) exit(-1);
+//     #endif
+//     struct thread *curr = thread_current();
+//     if(useradd == NULL || !(is_user_vaddr(useradd)||pml4_get_page(curr->pml4,useradd) == NULL)){
+//         exit(-1);
+//     }
+// }
 
 void halt(void)
 {
