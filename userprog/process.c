@@ -94,7 +94,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	
 	struct thread *child = get_child_process(tid);
 	sema_down(&child->load_sema);
-	
+
 	return tid;
 }
 
@@ -165,13 +165,13 @@ __do_fork (void *aux) {
 	process_activate (current);
 #ifdef VM
 	supplemental_page_table_init (&current->spt);
-	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
+	if (!supplemental_page_table_copy (&current->spt, &parent->spt)) {
 		goto error;
+	}
 #else
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
-
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
@@ -246,6 +246,7 @@ process_exec (void *f_name) {
 	NOT_REACHED ();
 }
 void argument_stack(char **parse, int count, void**rsp){
+	// printf("########################  %s  ########################\n", "argument_stack");
 	//argument 
 	for(int i = count-1; i > -1; i--){
 		//printf(" 테스트용 : %s\n",parse[i]);
@@ -435,6 +436,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * Returns true if successful, false otherwise. */
 static bool
 load (const char *file_name, struct intr_frame *if_) {
+	// printf("########################  %s  ########################\n", "load");
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -549,6 +551,7 @@ done:
  * FILE and returns true if so, false otherwise. */
 static bool
 validate_segment (const struct Phdr *phdr, struct file *file) {
+	// printf("########################  %s  ########################\n", "validate_segment");
 	/* p_offset and p_vaddr must have the same page offset. */
 	if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
 		return false;
@@ -618,6 +621,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
 
+	// printf("ofs %d\n", ofs);
 	file_seek (file, ofs);
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
@@ -625,6 +629,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		 * and zero the final PAGE_ZERO_BYTES bytes. */
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
+		// printf("read_bytes : %d / zero_bytes : %d\n", page_read_bytes, page_zero_bytes);
 
 		/* Get a page of memory. */
 		uint8_t *kpage = palloc_get_page (PAL_USER);
@@ -681,6 +686,8 @@ setup_stack (struct intr_frame *if_) {
  * if memory allocation fails. */
 static bool
 install_page (void *upage, void *kpage, bool writable) {
+	// printf("########################  %s  ########################\n", "install_page");
+
 	struct thread *t = thread_current ();
 
 	/* Verify that there's not already a page at that virtual
@@ -695,16 +702,20 @@ install_page (void *upage, void *kpage, bool writable) {
 
 static bool
 lazy_load_segment (struct page *page, void *aux) {
+	// printf("########################  %s  ########################\n", "lazy_load_segment");
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
 	struct file_info	*file_info = (struct file_info *)aux;
-	uint8_t				*kpage = page->frame->kva;
+	uint8_t				*kpage = pg_round_down (page->frame->kva);
 
+	file_seek(file_info->file, file_info->ofs);
 	if (file_read (file_info->file, kpage, file_info->read_bytes) != (int) file_info->read_bytes) {
-		palloc_free_page (kpage);
+		palloc_free_page (page->frame->kva);
 		return false;
 	}
+	memset(kpage + file_info->read_bytes, 0, file_info->zero_bytes);
+	// print_spt();
 
 	return true;
 }
@@ -726,10 +737,12 @@ lazy_load_segment (struct page *page, void *aux) {
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+	// printf("########################  %s  ########################\n", "load_segment");
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
 
+	// printf("ofs %d\n", ofs);
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
@@ -744,17 +757,18 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		}
 		file_info->file = file;
 		file_info->read_bytes = page_read_bytes;
-
+		file_info->zero_bytes = page_zero_bytes;
+		file_info->ofs = ofs;
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		void *aux = file_info;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
-
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -762,6 +776,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
 setup_stack (struct intr_frame *if_) {
+	// printf("########################  %s  ########################\n", "setup_stack");
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
 
@@ -769,9 +784,12 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	success = vm_alloc_page (PAL_USER | VM_MARKER_0, stack_bottom, 1);
-	// uint8_t *kpage;
-	success = vm_claim_page(stack_bottom);
+	if (!(success = vm_alloc_page (VM_ANON | VM_MARKER_0, stack_bottom, 1)))
+		return false;
+		
+	if (!(success = vm_claim_page(stack_bottom)))
+		return false;
+
 	if_->rsp = USER_STACK;
 
 	return success;

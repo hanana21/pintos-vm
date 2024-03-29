@@ -25,6 +25,8 @@ test_main (void)
 
   /* Read back via read(). */
   CHECK ((handle = open ("sample.txt")) > 1, "2nd open \"sample.txt\"");
+  // printf("############## %s\n", buf2 + 32768);
+  // printf("############## %d\n", memcmp (sample, buf2 + 32768, slen));
   CHECK (read (handle, buf2 + 32768, slen) == slen, "read \"sample.txt\"");
 
   CHECK (!memcmp (sample, buf2 + 32768, slen), "compare written data against read data");

@@ -2,6 +2,7 @@
 
 #include "vm/vm.h"
 #include "devices/disk.h"
+#include "threads/malloc.h"
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -27,27 +28,32 @@ vm_anon_init (void) {
 /* Initialize the file mapping */
 bool
 anon_initializer (struct page *page, enum vm_type type, void *kva) {
+	// printf("########################  %s  ########################\n", "anon_initializer");
 	/* Set up the handler */
 	page->operations = &anon_ops;
-
 	struct anon_page *anon_page = &page->anon;
-	
 }
 
 /* Swap in the page by read contents from the swap disk. */
 static bool
 anon_swap_in (struct page *page, void *kva) {
+	printf("########################  %s  ########################\n", "anon_swap_in");
 	struct anon_page *anon_page = &page->anon;
 }
 
 /* Swap out the page by writing contents to the swap disk. */
 static bool
 anon_swap_out (struct page *page) {
+	printf("########################  %s  ########################\n", "anon_swap_out");
 	struct anon_page *anon_page = &page->anon;
 }
 
 /* Destroy the anonymous page. PAGE will be freed by the caller. */
 static void
 anon_destroy (struct page *page) {
+	// printf("########################  %s  ########################\n", "anon_destroy");
 	struct anon_page *anon_page = &page->anon;
+
+	if (anon_page->aux != NULL)
+		free (anon_page->aux);
 }

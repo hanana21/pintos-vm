@@ -237,7 +237,6 @@ pml4_set_page (uint64_t *pml4, void *upage, void *kpage, bool rw) {
 	ASSERT (pml4 != base_pml4);
 
 	uint64_t *pte = pml4e_walk (pml4, (uint64_t) upage, 1);
-
 	if (pte)
 		*pte = vtop (kpage) | PTE_P | (rw ? PTE_W : 0) | PTE_U;
 	return pte != NULL;

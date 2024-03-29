@@ -5,11 +5,15 @@
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
+#include "userprog/process.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/palloc.h"
+
+#include "lib/kernel/hash.h"
+#include "vm/vm.h"
 
 
 void syscall_entry (void);
@@ -52,8 +56,9 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	// printf ("system call!\n");
 	// thread_exit ();
+	// printf ("rsp = %p\n", f->rsp);
+	// check_address(f->rsp);
 	switch (f->R.rax){
 	case SYS_HALT:
 		halt();
@@ -107,11 +112,18 @@ syscall_handler (struct intr_frame *f UNUSED) {
 void check_address(const uint64_t *useradd){
 	struct thread *curr = thread_current();
 
-	if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL){
+	#ifdef VM
+		if (useradd == NULL || !(is_user_vaddr(useradd)))
+			exit(-1);
 
-		exit(-1);
-		
-	}
+		struct page *page = spt_find_page(&curr->spt, useradd);
+
+		if (page == NULL)
+			exit(-1);
+	#else
+		if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL)
+			exit(-1);
+	#endif
 }
 
 void halt (void) {

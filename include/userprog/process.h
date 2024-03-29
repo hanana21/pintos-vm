@@ -2,10 +2,13 @@
 #define USERPROG_PROCESS_H
 
 #include "threads/thread.h"
+#include "userprog/syscall.h"
 
 typedef struct file_info {
 	struct file	*file;
 	size_t		read_bytes;
+	size_t		zero_bytes;
+	off_t		ofs;
 };
 
 tid_t process_create_initd (const char *file_name);
