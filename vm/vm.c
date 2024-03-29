@@ -156,7 +156,9 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	thread_current()->stack_bottom = addr;
 	vm_alloc_page(VM_ANON|VM_MARKER_0,pg_round_down(addr),1);
+	vm_claim_page(addr);
 }
 
 /* Handle the fault on write_protected page */
@@ -180,12 +182,20 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		void *rsp = f->rsp;
 		if(!user)
 			rsp = thread_current()->rsp;
-
-		if(USER_STACK- (1<<20) <= rsp && rsp <= addr && addr <= USER_STACK)
-			vm_stack_growth(addr);
-		else if(USER_STACK- (1<<20) <= rsp-8 && rsp-8 == addr && addr <= USER_STACK)
-			vm_stack_growth(addr);
-
+		if((uint64_t)addr > (USER_STACK - (1 <<20)) && USER_STACK > (uint64_t)addr && rsp - 8 <= addr)
+        {
+			vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+			return true;
+		}
+		// if(USER_STACK - (1<<20) <= rsp-8 && rsp-8 == addr && addr <= USER_STACK){
+		// 	vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+		// 	return true;
+		// }
+		// else if(USER_STACK- (1<<20) <= rsp && rsp <= addr && addr <= USER_STACK){
+		// 	vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+		// 	return true;
+		// }
+		
 		page = spt_find_page(spt,addr);
 		if (page == NULL)
 			return false;
@@ -285,6 +295,6 @@ bool page_less(const struct hash_elem *a, const struct hash_elem *b, void *aux){
 }
 void hash_page_destroy(struct hash_elem *e,void *aux){
 	struct page *page = hash_entry(e,struct page,h_elem);
-	//destroy(page);
+	destroy(page);
 	free(page);
 }

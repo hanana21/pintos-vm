@@ -56,7 +56,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	#ifdef VM
 		thread_current()->rsp = f->rsp;
 	#endif
-	
+
 	switch (f->R.rax){
 	case SYS_HALT:
 		halt();
