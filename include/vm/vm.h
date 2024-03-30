@@ -37,6 +37,8 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
+#define	STACK_MAX_SIZE (1 << 20)
+
 /* The representation of "page".
  * This is kind of "parent class", which has four "child class"es, which are
  * uninit_page, file_page, anon_page, and page cache (project4).
@@ -48,6 +50,8 @@ struct page {
 
 	/* Your implementation */
 	struct hash_elem		hash_elem;
+	bool					writable;
+	uint64_t				stack_bottom;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -87,6 +91,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash h;
 };
 
 #include "threads/thread.h"
@@ -110,5 +115,7 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+
+void print_spt(void);
 
 #endif  /* VM_VM_H */

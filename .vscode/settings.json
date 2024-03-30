@@ -15,7 +15,9 @@
         "pte.h": "c",
         "intrinsic.h": "c",
         "vm.h": "c",
-        "hash.h": "c"
+        "hash.h": "c",
+        "vaddr.h": "c",
+        "process.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false
 }

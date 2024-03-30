@@ -130,13 +130,14 @@ struct thread {
 	struct file *runn_file;               /* 현재 실행 중인 프로세스가 실행 중인 파일*/
 	
 
+	uint64_t	stack_bottom;
 #ifdef USERPROG //만약 USERPROG매크로가 정의되있다면
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
-	struct supplemental_page_table spt;
+	struct supplemental_page_table	spt;
 #endif
 
 	/* Owned by thread.c. */

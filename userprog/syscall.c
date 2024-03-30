@@ -106,11 +106,18 @@ syscall_handler (struct intr_frame *f UNUSED) {
 void check_address(const uint64_t *useradd){
 	struct thread *curr = thread_current();
 
-	if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL){
+	#ifdef VM
+		if (useradd == NULL || !(is_user_vaddr(useradd)))
+			exit(-1);
 
-		exit(-1);
-		
-	}
+		struct page *page = spt_find_page(&curr->spt, useradd);
+
+		if (page == NULL)
+			exit(-1);
+	#else
+		if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL)
+			exit(-1);
+	#endif
 }
 
 void halt (void) {
