@@ -11,6 +11,7 @@
 #include "filesys/file.h"
 #include "threads/palloc.h"
 
+#include "vm/vm.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -20,6 +21,9 @@ pid_t fork(const char *thread_name, struct intr_frame *f);
 static struct file *find_file_by_fd(int fd);
 int add_file_to_fdt(struct file *file);
 void remove_file_from_fdt(int fd);
+
+void check_buffer(const uint64_t *useradd);
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset);
 
 /* System call.
  *
@@ -96,7 +100,12 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	case SYS_CLOSE:
 		close(f->R.rdi);
 		break;
-	
+	case SYS_MMAP:
+		f->R.rax = (uint64_t)mmap((void *)f->R.rdi,f->R.rsi,f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	case SYS_MUNMAP:
+		munmap((void *)f->R.rdi);
+		break;
 	default:
 		exit(-1);
 		break;
@@ -118,6 +127,18 @@ void check_address(const uint64_t *useradd){
 		if(useradd == NULL || !(is_user_vaddr(useradd)) || pml4_get_page(curr->pml4,useradd) == NULL)
 			exit(-1);
 	#endif
+}
+
+void check_buffer(const uint64_t *useradd){
+	struct thread *curr = thread_current();
+
+	if (useradd == NULL || !(is_user_vaddr(useradd)))
+		exit(-1);
+
+	struct page *page = spt_find_page(&curr->spt, useradd);
+	
+	if (page == NULL || page->writable == false) 
+		exit(-1);
 }
 
 void halt (void) {
@@ -192,7 +213,7 @@ int filesize (int fd) {
 }
 
 int read (int fd, void *buffer, unsigned length) {
-	check_address(buffer);
+	check_buffer(buffer);
 	int ret;
 	if(fd == 0){
 		int i;
@@ -237,6 +258,8 @@ int write (int fd, const void *buffer, unsigned length) {
 		if(fileobj == NULL)
 			return -1;
 
+		// printf("file : %p, buffer : %p, offset: %d\n", fileobj, buffer, length);
+		// print_spt();
 		lock_acquire(&file_lock);
 		ret = file_write(fileobj,buffer,length);
 		lock_release(&file_lock);
@@ -271,6 +294,40 @@ void close (int fd) {
 		remove_file_from_fdt(fd);
 		file_close(fileobj);
 	}
+}
+
+
+void *mmap(void *addr, size_t length, int writable, int fd, off_t offset) {
+	// printf("addr %p, length %d, fd %d, offset : %d", addr, length, fd, offset);
+	if (addr == NULL || is_kernel_vaddr(addr) || is_kernel_vaddr(addr - length) || addr != pg_round_down(addr))
+		return NULL;
+	if (!(fd > 1 && fd <= 63) || length == 0 || offset % PGSIZE != 0)
+		return NULL;
+
+	void* check_addr = addr;
+	size_t check_length = length;
+	while(check_length > 0) {
+		if(spt_find_page(&thread_current()->spt, addr) != NULL)
+			return NULL;
+		check_length -= check_length > PGSIZE ? PGSIZE : check_length;
+		check_addr -= PGSIZE;
+	}
+
+	struct file *file = thread_current()->fdt[fd];
+	if (file == NULL)
+		exit(-1);
+	size_t read_bytes = (size_t)file_length(file);
+	if (read_bytes == 0)
+		return NULL;
+	
+	if (!mmap_load_segment(file, offset, addr, length, writable))
+		return NULL;
+	return addr;
+}
+
+void munmap (void *addr) {
+	check_address(addr);
+	do_munmap(addr);
 }
 
 //file descriptor 서브 함수들 

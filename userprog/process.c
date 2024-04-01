@@ -320,13 +320,11 @@ process_exit (void) {
 		close(i);
 	}
 	palloc_free_multiple(curr->fdt,FDT_PAGES);
+	process_cleanup ();
 	file_close(curr->runn_file);
 
 	sema_up(&curr -> wait_sema);
 	sema_down(&curr -> free_sema);
-
-	process_cleanup ();
-
 }
 
 /* Free the current process's resources. */
@@ -695,6 +693,7 @@ lazy_load_segment (struct page *page, void *aux) {
 	struct file_info	*file_info = (struct file_info *)aux;
 	uint8_t				*kpage = page->frame->kva;
 
+	// print_spt();
 	file_seek(file_info->file, file_info->ofs);
 	if (file_read (file_info->file, kpage, file_info->page_read_bytes) != (int) file_info->page_read_bytes) {
 		palloc_free_page (page->frame->kva);
@@ -736,6 +735,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		struct file_info *file_info = (struct file_info *)malloc(sizeof(struct file_info));
 		if (file_info == NULL)
 			return false;
+		file_info->read_bytes = read_bytes;
 		file_info->page_read_bytes = page_read_bytes;
 		file_info->page_zero_bytes = page_zero_bytes;
 		file_info->ofs = ofs;
@@ -756,6 +756,61 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		ofs += page_read_bytes;
 	}
 	return true;
+}
+
+bool
+mmap_load_segment (struct file *file, off_t ofs, uint8_t *upage,
+		size_t length, bool writable) {
+
+	size_t read_bytes = (size_t)file_length(file);
+	// printf("read bytes : %d\n",read_bytes);
+	file = file_reopen(file);
+	while (read_bytes > 0) {
+		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+		size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+		struct file_info *file_info = (struct file_info *)malloc(sizeof(struct file_info));
+		if (file_info == NULL)
+			return false;
+
+		file_info->read_bytes = read_bytes;
+		file_info->page_read_bytes = page_read_bytes;
+		file_info->page_zero_bytes = page_zero_bytes;
+		file_info->ofs = ofs;
+		file_info->file = file;
+
+		/* TODO: Set up aux to pass information to the lazy_load_segment. */
+		void *aux = file_info;
+		
+		if (!vm_alloc_page_with_initializer (VM_FILE, upage, writable, lazy_load_segment, aux))
+			return false;
+		/* Advance. */
+		read_bytes -= page_read_bytes;
+		upage += PGSIZE;
+		ofs += page_read_bytes;
+	}
+	return true;
+}
+
+void do_munmap(void *addr) {
+	// print_spt();
+	struct page *page = spt_find_page(&thread_current()->spt, addr);
+	if (page == NULL)
+		return ;
+	
+	if (page_get_type(page) != VM_FILE)
+		return ;
+
+	struct file_info *file_info = (struct file_info *)page->file.aux;
+	size_t read_bytes = file_info->read_bytes;
+
+	while (page != NULL && read_bytes != 0) {
+		read_bytes = read_bytes < PGSIZE ? 0 : read_bytes - PGSIZE;
+		hash_delete(&thread_current()->spt.h, &page->hash_elem);
+		vm_dealloc_page (page);
+		addr += PGSIZE;
+		page = spt_find_page(&thread_current()->spt, addr);
+	}
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */

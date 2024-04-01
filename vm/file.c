@@ -1,6 +1,9 @@
 /* file.c: Implementation of memory backed file object (mmaped object). */
 
 #include "vm/vm.h"
+#include "userprog/process.h"
+#include "threads/vaddr.h"
+#include "threads/mmu.h"
 
 static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
@@ -43,16 +46,26 @@ file_backed_swap_out (struct page *page) {
 /* Destory the file backed page. PAGE will be freed by the caller. */
 static void
 file_backed_destroy (struct page *page) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
+	if (file_page->aux) {
+		struct file_info *f_i = (struct file_info *)page->file.aux;
+		if (pml4_is_dirty(&thread_current()->pml4, page->va))
+			file_write_at (f_i->file, page->frame->kva, f_i->read_bytes, f_i->ofs);
+		free(file_page->aux);
+	}
 }
 
-/* Do the mmap */
-void *
-do_mmap (void *addr, size_t length, int writable,
-		struct file *file, off_t offset) {
-}
+// /* Do the mmap */
+// void *
+// do_mmap (void *addr, size_t length, int writable,
+// 		struct file *file, off_t offset) {
+// }
 
-/* Do the munmap */
-void
-do_munmap (void *addr) {
-}
+// /* Do the munmap */
+// void
+// do_munmap (struct page *page) {
+// 	if (page_get_type(page) == VM_FILE) {
+// 		struct file_info *file_info = (struct file_info *)page->file.aux;
+// 		printf("read bytes: %d\n", (int)file_info->read_bytes);
+// 	}
+// }

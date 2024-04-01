@@ -57,8 +57,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		struct page *page = (struct page *)malloc(sizeof(struct page));
 		if (page == NULL)
 			goto err;
-
-		bool (*initializer)(struct page *, enum vm_type, void *);
 	
 		switch (VM_TYPE(type)) {
 			case VM_ANON:
@@ -71,10 +69,8 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 		page->writable = writable;
 
-		if (!spt_insert_page(spt, page)) {
-			// free(page);
+		if (!spt_insert_page(spt, page))
 			goto err;
-		}
 
 		return true;
 	}
@@ -181,17 +177,17 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 		if ((uint64_t)addr > USER_STACK - STACK_MAX_SIZE && \
 			(uint64_t)addr & VM_MARKER_0 && \
 			(uint64_t)addr ==  f->rsp - 8) {
+
+			// ((uint64_t)addr ==  f->rsp - 8 || (uint64_t)addr > f->rsp - 32)) {
 			vm_stack_growth(addr);
-			// print_spt();
 			return true;
 		}
-
-		page = spt_find_page(spt, addr);
-		if (page == NULL)
+		page = spt_find_page(spt, pg_round_down (addr));
+		if (page == NULL) {
 			return false;
+		}
 		return vm_claim_page (addr);
 	}
-
 	return false;
 }
 
@@ -248,69 +244,6 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
 	hash_init (&spt->h, spt_hash_func, spt_hash_less_func, NULL);
 }
 
-
-// static bool
-// page_copy_action(struct supplemental_page_table *spt, struct page *src) {
-//     enum vm_type type;
-//     void *upage, *aux = NULL;
-//     bool writable;
-//     vm_initializer *init = NULL;
-//     struct page *dst;
-//     bool success = true;
-    
-//     type = page_get_type(src);
-//     upage = src->va;
-//     writable = src->writable;
-
-//     void *src_aux = NULL;
-//     switch(VM_TYPE(src->operations->type)) {
-//         case VM_UNINIT:
-//             src_aux = src->uninit.aux;
-//             init = src->uninit.init;
-//             break;
-//         case VM_ANON:
-//             src_aux = src->anon.aux;
-//             init = src->anon.init;
-
-//             break;
-//         case VM_FILE:
-//             return true;
-//             break;
-//     }
-
-//     if(src_aux != NULL) {
-//         struct file_info *parent_aux = (struct file_info *)src_aux;
-//         struct file_info *child_aux = malloc(sizeof(struct file_info));
-
-//         if(child_aux == NULL)
-// 			return false;
-
-//         child_aux->file = parent_aux->file;
-//         child_aux->ofs = parent_aux->ofs;
-//         child_aux->page_read_bytes = parent_aux->page_read_bytes;
-//         child_aux->page_zero_bytes = parent_aux->page_zero_bytes;
-//         aux = (void *)child_aux;
-//     }
-
-//     if(!vm_alloc_page_with_initializer(type, upage, writable, init, aux)) {
-//         return false;
-//     }
-
-//     dst = spt_find_page(spt, upage);
-//     if(dst == NULL) {
-//         return false;
-//     }
-
-//     if(VM_TYPE (src->operations->type) != VM_UNINIT) {
-//         success = vm_do_claim_page(dst);
-//         if(success) {
-//             memcpy(dst->frame->kva, src->frame->kva, PGSIZE);
-//         }
-//     }
-    
-//     return success;
-// }
-
 static bool
 duplicate_aux(void *src_aux, void **aux) {
     if (src_aux == NULL)
@@ -356,14 +289,12 @@ page_copy_action(struct supplemental_page_table *spt, struct page *src) {
     if (!duplicate_aux(src_aux, &aux))
         return false;
 
-    if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux)) {
+    if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
         return false;
-    }
 
     dst = spt_find_page(spt, upage);
-    if (dst == NULL) {
+    if (dst == NULL)
         return false;
-    }
 
     if (VM_TYPE(src->operations->type) != VM_UNINIT) {
         if (vm_do_claim_page(dst))
@@ -400,8 +331,9 @@ hash_destroy_action(struct hash_elem *e, void *aux) {
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt) {
-	if(!hash_empty(&spt->h))
-		hash_clear(&spt->h, hash_destroy_action);
+	// if(!hash_empty(&spt->h)) {
+	hash_clear(&spt->h, hash_destroy_action);
+	// }
 }
 
 void print_spt(void) {

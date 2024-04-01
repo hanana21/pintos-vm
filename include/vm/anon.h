@@ -10,6 +10,11 @@ struct anon_page {
 	void *aux;
 	/* Initiate the struct page and maps the pa to the va */
 	bool (*page_initializer) (struct page *, enum vm_type, void *kva);
+    disk_sector_t slot_num;
+};
+
+struct swap_table {
+    struct bitmap *slots;
 };
 
 void vm_anon_init (void);
