@@ -299,6 +299,7 @@ process_wait (tid_t child_tid UNUSED) {
 	}
 
 	sema_down(&child->wait_sema);
+	// printf("wait my %s / child: %s\n", thread_current()->name, child->name);
 	int exit_status = child -> exit_status;
 	list_remove(&child->child_elem);
 	sema_up(&child -> free_sema);
@@ -321,6 +322,7 @@ process_exit (void) {
 	}
 	palloc_free_multiple(curr->fdt,FDT_PAGES);
 	process_cleanup ();
+	// printf("clean %s\n", curr->name);
 	file_close(curr->runn_file);
 
 	sema_up(&curr -> wait_sema);

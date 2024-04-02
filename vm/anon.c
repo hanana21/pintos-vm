@@ -1,7 +1,7 @@
 /* anon.c: Implementation of page for non-disk image (a.k.a. anonymous page). */
 
 #include "vm/vm.h"
-#include "devices/disk.h"
+#include "threads/vaddr.h"
 
 #include "lib/kernel/bitmap.h"
 
@@ -32,8 +32,8 @@ void
 vm_anon_init (void) {
 	/* TODO: Set up the swap_disk. */
 	swap_disk = disk_get(1, 1);
-	disk_size(swap_disk);
-	swap_table.slots = bitmap_create(PAGE_COUNT);
+	// disk_size(swap_disk);
+	swap_table.slots = bitmap_create(PAGE_COUNT * 8);
 }
 
 /* Initialize the file mapping */
@@ -63,7 +63,13 @@ anon_swap_in (struct page *page, void *kva) {
 static bool
 anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
-	disk_sector_t slot_num = salloc_get_slot();
+
+	disk_sector_t slot_num = bitmap_scan_and_flip(swap_table.slots, 0, 1, false);
+	if (slot_num == BITMAP_ERROR)
+		return false;
+
+	anon_page->slot_num = slot_num;
+	
 }
 
 /* Destroy the anonymous page. PAGE will be freed by the caller. */

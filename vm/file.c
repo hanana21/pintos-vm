@@ -49,7 +49,7 @@ file_backed_destroy (struct page *page) {
 	struct file_page *file_page = &page->file;
 	if (file_page->aux) {
 		struct file_info *f_i = (struct file_info *)page->file.aux;
-		if (pml4_is_dirty(&thread_current()->pml4, page->va))
+		if (pml4_is_dirty(thread_current()->pml4, page->va))
 			file_write_at (f_i->file, page->frame->kva, f_i->read_bytes, f_i->ofs);
 		free(file_page->aux);
 	}

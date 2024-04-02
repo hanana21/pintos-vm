@@ -4,6 +4,7 @@
 #include "threads/vaddr.h"
 #include "threads/pte.h"
 #include "threads/mmu.h"
+#include "threads/init.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
@@ -132,7 +133,7 @@ vm_get_frame (void) {
 	
 	kva = palloc_get_page(PAL_USER);
 	if (kva == NULL)
-		PANIC("todo");
+		frame = vm_evict_frame();
 
 	frame = (struct frame *)malloc(sizeof(struct frame));
 	if (frame == NULL)
@@ -177,7 +178,6 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 		if ((uint64_t)addr > USER_STACK - STACK_MAX_SIZE && \
 			(uint64_t)addr & VM_MARKER_0 && \
 			(uint64_t)addr ==  f->rsp - 8) {
-
 			// ((uint64_t)addr ==  f->rsp - 8 || (uint64_t)addr > f->rsp - 32)) {
 			vm_stack_growth(addr);
 			return true;
@@ -219,8 +219,18 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (!pml4_set_page(cur->pml4, page->va, frame->kva, page->writable))
+	if (!pml4_set_page(cur->pml4, page->va, frame->kva, page->writable)) {
 		return false;
+	}
+
+	// if (pg_round_down (page->va) == 0x10000000) {
+	// 	uint64_t *pte = pml4e_walk(thread_current()->pml4, 0x10000000,0);
+	// 	if (pte) {
+	// 		printf("be\n");
+	// 	} else
+	// 		printf("not be\n");
+	// 	printf("!!!va: %p kva: %p, wriable : %d\n", page->va, page->frame->kva, page->writable);
+	// }
 	return swap_in (page, frame->kva);
 }
 
@@ -282,7 +292,9 @@ page_copy_action(struct supplemental_page_table *spt, struct page *src) {
             init = src->anon.init;
             break;
         case VM_FILE:
-            return true;
+            src_aux = src->file.aux;
+            init = src->file.init;
+            break;
     }
 
     void *aux = NULL;
@@ -331,9 +343,7 @@ hash_destroy_action(struct hash_elem *e, void *aux) {
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt) {
-	// if(!hash_empty(&spt->h)) {
 	hash_clear(&spt->h, hash_destroy_action);
-	// }
 }
 
 void print_spt(void) {
@@ -345,7 +355,7 @@ void print_spt(void) {
 
 	void *va, *kva;
 	enum vm_type type;
-	char *type_str, *stack_str, *writable_str;
+	char *type_str, *stack_str, *writable_str,*dirty_k_str, *dirty_u_str;
 	size_t read_bytes = 0;
 	stack_str = " - ";
 
@@ -358,6 +368,8 @@ void print_spt(void) {
 		if (page->frame) {
 			kva = page->frame->kva;
 			writable_str = (uint64_t)page->va & PTE_W ? "YES" : "NO";
+			dirty_u_str = pml4_is_dirty(thread_current()->pml4, page->va) ? "YES" : "NO";
+			dirty_k_str = pml4_is_dirty(base_pml4, page->frame->kva) ? "YES" : "NO";
 		} 
 		// else {
 		// 	kva = NULL;
@@ -409,10 +421,10 @@ void print_spt(void) {
 
 		}
 		if (read_bytes)
-			printf(" %12p | %12p | %12s | %3s | %3s | %8d \n",
-			   va, kva, type_str, stack_str, writable_str, read_bytes);
+			printf(" %12p | %12p | %12s | %3s | %3s | %3s/%3s | %8d \n",
+			   va, kva, type_str, stack_str, writable_str,dirty_k_str,dirty_u_str, read_bytes);
 		else
-			printf(" %12p | %12p | %12s | %3s | %3s | \n",
-			   va, kva, type_str, stack_str, writable_str);
+			printf(" %12p | %12p | %12s | %3s | %3s | %3s/%3s | \n",
+			   va, kva, type_str, stack_str,dirty_k_str,dirty_u_str, writable_str);
 	}
 }
