@@ -780,12 +780,12 @@ bool cmp_priority (const struct list_elem *a,const struct list_elem *b,void *aux
 
 void thread_compare_priority(void){
 	struct thread *curr = thread_current();
-
-	if (!list_empty (&ready_list) && 
-    thread_current ()->priority < 
+	if (intr_context())
+		return ;
+	if (!list_empty (&ready_list) && \
+    thread_current ()->priority < \
     list_entry (list_front (&ready_list), struct thread, elem)->priority)
-        thread_yield ();
-
+		thread_yield ();
 }
 
 bool cmp_donation_priority (const struct list_elem *a,const struct list_elem *b,void *aux){

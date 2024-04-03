@@ -7,6 +7,21 @@
         "flags.h": "c",
         "gdt.h": "c",
         "thread.h": "c",
-        "file.h": "c"
-    }
+        "file.h": "c",
+        "stdint.h": "c",
+        "palloc.h": "c",
+        "stdbool.h": "c",
+        "mmu.h": "c",
+        "pte.h": "c",
+        "intrinsic.h": "c",
+        "vm.h": "c",
+        "hash.h": "c",
+        "vaddr.h": "c",
+        "process.h": "c",
+        "main.h": "c",
+        "malloc.h": "c",
+        "bitmap.h": "c",
+        "disk.h": "c"
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

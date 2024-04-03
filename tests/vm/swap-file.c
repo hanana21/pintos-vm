@@ -40,6 +40,7 @@ test_main (void)
         }
     }
 
+    // msg("FIN");
     /* Unmap and close opend file */ 
     munmap (map);
     close (handle);

@@ -226,11 +226,9 @@ disk_read (struct disk *d, disk_sector_t sec_no, void *buffer) {
 	lock_release (&c->lock);
 }
 
-/* Write sector SEC_NO to disk D from BUFFER, which must contain
-   DISK_SECTOR_SIZE bytes.  Returns after the disk has
-   acknowledged receiving the data.
-   Internally synchronizes accesses to disks, so external
-   per-disk locking is unneeded. */
+/* 	Disk_SECTOR_SIZE 바이트를 포함해야 하는 BUFFER에서 Disk D에 SEC_NO를 기록합니다.
+	Disk가 데이터 수신을 승인한 후에 반환됩니다.
+	디스크에 대한 액세스를 내부적으로 동기화하므로 디스크당 외부 잠금이 필요하지 않습니다. */
 void
 disk_write (struct disk *d, disk_sector_t sec_no, const void *buffer) {
 	struct channel *c;
