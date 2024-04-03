@@ -2,6 +2,9 @@
 
 #include "vm/vm.h"
 #include "threads/vaddr.h"
+#include "threads/pte.h"
+#include "threads/mmu.h"
+
 
 #include "lib/kernel/bitmap.h"
 
@@ -11,7 +14,7 @@ static bool anon_swap_in (struct page *page, void *kva);
 static bool anon_swap_out (struct page *page);
 static void anon_destroy (struct page *page);
 
-static struct swap_table swap_table;
+static struct bitmap *swap_bitmap;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
@@ -32,8 +35,8 @@ void
 vm_anon_init (void) {
 	/* TODO: Set up the swap_disk. */
 	swap_disk = disk_get(1, 1);
-	// disk_size(swap_disk);
-	swap_table.slots = bitmap_create(PAGE_COUNT * 8);
+	int swap_size = disk_size(swap_disk);
+	swap_bitmap = bitmap_create(swap_size / 8);
 }
 
 /* Initialize the file mapping */
@@ -43,6 +46,8 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 	page->operations = &anon_ops;
 
 	struct anon_page *anon_page = &page->anon;
+
+	anon_page->swap_slot = -1;
 }
 
 /* Swap in the page by read contents from the swap disk. */
@@ -52,6 +57,14 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 anon_swap_in (struct page *page, void *kva) {
 	struct anon_page *anon_page = &page->anon;
+	void *kva_ = pg_round_down (page->frame->kva);
+	for (int i = 0; i < 8; i++)
+		disk_read (swap_disk, anon_page->swap_slot * 8 + i, kva_ + (DISK_SECTOR_SIZE * i));
+
+	bitmap_set (swap_bitmap, anon_page->swap_slot, 0);
+
+	anon_page->swap_slot = -1;
+	return true;
 }
 
 /* Swap out the page by writing contents to the swap disk. */
@@ -63,19 +76,31 @@ anon_swap_in (struct page *page, void *kva) {
 static bool
 anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
+	void	*kva_ = pg_round_down (page->frame->kva);
 
-	disk_sector_t slot_num = bitmap_scan_and_flip(swap_table.slots, 0, 1, false);
-	if (slot_num == BITMAP_ERROR)
-		return false;
+	disk_sector_t swap_slot = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
+	if (swap_slot == BITMAP_ERROR)
+		PANIC ("Kernel Panic");
 
-	anon_page->slot_num = slot_num;
-	
+	for (int i = 0; i < 8; i++)
+		disk_write (swap_disk, (swap_slot * 8) + i, kva_ + (DISK_SECTOR_SIZE * i));
+
+	anon_page->swap_slot = swap_slot;
+	pml4_clear_page(thread_current()->pml4, pg_round_down (page->va));
+
+	return true;
 }
 
 /* Destroy the anonymous page. PAGE will be freed by the caller. */
 static void
 anon_destroy (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
+
 	if (anon_page->aux)
 		free(anon_page->aux);
+
+	if (page->frame) {
+		list_remove(&page->frame->f_elem);
+		free (page->frame);
+	}
 }

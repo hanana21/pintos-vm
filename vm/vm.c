@@ -10,12 +10,15 @@
 
 #include "userprog/process.h"
 
+static struct list frame_list;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
 vm_init (void) {
 	vm_anon_init ();
 	vm_file_init ();
+	list_init(&frame_list);
 #ifdef EFILESYS  /* For project 4 */
 	pagecache_init ();
 #endif
@@ -55,7 +58,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
 	if (spt_find_page (spt, upage) == NULL) {
-		struct page *page = (struct page *)malloc(sizeof(struct page));
+		struct page *page = (struct page *)calloc(sizeof(struct page), 1);
 		if (page == NULL)
 			goto err;
 	
@@ -106,20 +109,29 @@ spt_remove_page (struct supplemental_page_table *spt, struct page *page) {
 /* Get the struct frame, that will be evicted. */
 static struct frame *
 vm_get_victim (void) {
-	struct frame *victim = NULL;
-	 /* TODO: The policy for eviction is up to you. */
-
-	return victim;
+	/* TODO: The policy for eviction is up to you. */
+	// if (!list_empty(&frame_list))
+	return list_entry (list_front (&frame_list), struct frame, f_elem);
 }
 
 /* Evict one page and return the corresponding frame.
  * Return NULL on error.*/
 static struct frame *
 vm_evict_frame (void) {
-	struct frame *victim UNUSED = vm_get_victim ();
-	/* TODO: swap out the victim and return the evicted frame. */
+	struct frame *victim = vm_get_victim ();
 
-	return NULL;
+	/* TODO: swap out the victim and return the evicted frame. */
+	if (!victim)
+		return NULL;
+
+	if (!swap_out(victim->page))
+		return NULL;
+
+	list_remove (&victim->f_elem);
+	victim->page->frame = NULL;
+	victim->page = NULL;
+
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -128,17 +140,22 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame	*frame;
-	void			*kva;
-	
-	kva = palloc_get_page(PAL_USER);
-	if (kva == NULL)
-		frame = vm_evict_frame();
+	struct frame	*frame = NULL;
+	void			*kva = NULL;
 
-	frame = (struct frame *)malloc(sizeof(struct frame));
-	if (frame == NULL)
-		PANIC("vm_get_frame : malloc fault");
-	frame->kva = kva;
+	kva = palloc_get_page(PAL_USER);
+	if (kva == NULL) {
+		frame = vm_evict_frame();
+	}
+	else {
+		frame = (struct frame *)calloc(sizeof(struct frame), 1);
+		if (frame == NULL)
+			PANIC("vm_get_frame : malloc fault");
+		frame->kva = kva;
+	}
+
+	list_push_back (&frame_list, &frame->f_elem);
+
 	frame->page = NULL;
 
 	ASSERT (frame != NULL);
@@ -167,6 +184,8 @@ vm_handle_wp (struct page *page UNUSED) {
 bool
 vm_try_handle_fault (struct intr_frame *f, void *addr,
 		bool user, bool write, bool not_present) {
+	// if (pg_round_down (addr) == 0x4747f000)
+	// 	printf("handle user %d/ write %d /present %d\n", user, write, not_present);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 	struct page *page = NULL;
@@ -175,17 +194,23 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 
 	if (not_present) {
 		// printf("addr : %p, cmp1 : %p, cmp2 : %p\n", (uint64_t)addr, USER_STACK - STACK_MAX_SIZE, f->rsp - 8);
-		if ((uint64_t)addr > USER_STACK - STACK_MAX_SIZE && \
-			(uint64_t)addr & VM_MARKER_0 && \
-			(uint64_t)addr ==  f->rsp - 8) {
-			// ((uint64_t)addr ==  f->rsp - 8 || (uint64_t)addr > f->rsp - 32)) {
-			vm_stack_growth(addr);
-			return true;
-		}
 		page = spt_find_page(spt, pg_round_down (addr));
 		if (page == NULL) {
-			return false;
+			if ((uint64_t)addr > USER_STACK - STACK_MAX_SIZE && \
+				(uint64_t)addr & VM_MARKER_0 && \
+				(uint64_t)addr ==  f->rsp - 8) {
+				// ((uint64_t)addr <=  f->rsp - 8 || (uint64_t)addr < f->rsp - 32)) {
+				// printf("!!!!\n");
+				vm_stack_growth(addr);
+				return true;
+			}
+			else 
+				return false;
 		}
+
+		// if (page == NULL) {
+		// 	return false;
+		// }
 		return vm_claim_page (addr);
 	}
 	return false;
@@ -219,18 +244,9 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (!pml4_set_page(cur->pml4, page->va, frame->kva, page->writable)) {
+	if (!pml4_set_page(cur->pml4, page->va, frame->kva, page->writable))
 		return false;
-	}
 
-	// if (pg_round_down (page->va) == 0x10000000) {
-	// 	uint64_t *pte = pml4e_walk(thread_current()->pml4, 0x10000000,0);
-	// 	if (pte) {
-	// 		printf("be\n");
-	// 	} else
-	// 		printf("not be\n");
-	// 	printf("!!!va: %p kva: %p, wriable : %d\n", page->va, page->frame->kva, page->writable);
-	// }
 	return swap_in (page, frame->kva);
 }
 
@@ -260,7 +276,7 @@ duplicate_aux(void *src_aux, void **aux) {
         return true;
 
     struct file_info *parent_aux = (struct file_info *)src_aux;
-    struct file_info *child_aux = malloc(sizeof(struct file_info));
+    struct file_info *child_aux = calloc(sizeof(struct file_info), 1);
     if(child_aux == NULL)
         return false;
 
@@ -371,11 +387,11 @@ void print_spt(void) {
 			dirty_u_str = pml4_is_dirty(thread_current()->pml4, page->va) ? "YES" : "NO";
 			dirty_k_str = pml4_is_dirty(base_pml4, page->frame->kva) ? "YES" : "NO";
 		} 
-		// else {
-		// 	kva = NULL;
-		// 	dirty_k_str = " - ";
-		// 	dirty_u_str = " - ";
-		// }
+		else {
+			kva = NULL;
+			dirty_k_str = " - ";
+			dirty_u_str = " - ";
+		}
 
 		type = page->operations->type;
 		if (VM_TYPE(type) == VM_UNINIT) {

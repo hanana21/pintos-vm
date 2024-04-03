@@ -690,7 +690,7 @@ install_page (void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
-static bool
+bool
 lazy_load_segment (struct page *page, void *aux) {
 	struct file_info	*file_info = (struct file_info *)aux;
 	uint8_t				*kpage = page->frame->kva;
@@ -734,7 +734,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		struct file_info *file_info = (struct file_info *)malloc(sizeof(struct file_info));
+		struct file_info *file_info = (struct file_info *)calloc(sizeof(struct file_info), 1);
 		if (file_info == NULL)
 			return false;
 		file_info->read_bytes = read_bytes;

@@ -24,4 +24,6 @@ struct thread *get_child_process(int pid);
 bool mmap_load_segment (struct file *file, off_t ofs, uint8_t *upage, size_t length, bool writable);
 void do_munmap(void *addr);
 
+bool lazy_load_segment (struct page *page, void *aux);
+
 #endif /* userprog/process.h */
