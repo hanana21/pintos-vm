@@ -199,8 +199,6 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 			if ((uint64_t)addr > USER_STACK - STACK_MAX_SIZE && \
 				(uint64_t)addr & VM_MARKER_0 && \
 				(uint64_t)addr ==  f->rsp - 8) {
-				// ((uint64_t)addr <=  f->rsp - 8 || (uint64_t)addr < f->rsp - 32)) {
-				// printf("!!!!\n");
 				vm_stack_growth(addr);
 				return true;
 			}
@@ -208,9 +206,6 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 				return false;
 		}
 
-		// if (page == NULL) {
-		// 	return false;
-		// }
 		return vm_claim_page (addr);
 	}
 	return false;
@@ -272,64 +267,64 @@ supplemental_page_table_init (struct supplemental_page_table *spt) {
 
 static bool
 duplicate_aux(void *src_aux, void **aux) {
-    if (src_aux == NULL)
-        return true;
+	if (src_aux == NULL)
+		return true;
 
-    struct file_info *parent_aux = (struct file_info *)src_aux;
-    struct file_info *child_aux = calloc(sizeof(struct file_info), 1);
-    if(child_aux == NULL)
-        return false;
+	struct file_info *parent_aux = (struct file_info *)src_aux;
+	struct file_info *child_aux = calloc(sizeof(struct file_info), 1);
+	if(child_aux == NULL)
+		return false;
 
-    child_aux->file = parent_aux->file;
-    child_aux->ofs = parent_aux->ofs;
-    child_aux->page_read_bytes = parent_aux->page_read_bytes;
-    child_aux->page_zero_bytes = parent_aux->page_zero_bytes;
-    *aux = (void *)child_aux;
+	child_aux->file = parent_aux->file;
+	child_aux->ofs = parent_aux->ofs;
+	child_aux->page_read_bytes = parent_aux->page_read_bytes;
+	child_aux->page_zero_bytes = parent_aux->page_zero_bytes;
+	*aux = (void *)child_aux;
 
-    return true;
+	return true;
 }
 
 static bool
 page_copy_action(struct supplemental_page_table *spt, struct page *src) {
-    enum vm_type type = page_get_type(src);
-    bool writable = src->writable;
-    vm_initializer *init = NULL;
-    void *src_aux = NULL;
-    void *upage = src->va;
-    struct page *dst;
+	enum vm_type type = page_get_type(src);
+	bool writable = src->writable;
+	vm_initializer *init = NULL;
+	void *src_aux = NULL;
+	void *upage = src->va;
+	struct page *dst;
 
-    switch (VM_TYPE(src->operations->type)) {
-        case VM_UNINIT:
-            src_aux = src->uninit.aux;
-            init = src->uninit.init;
-            break;
-        case VM_ANON:
-            src_aux = src->anon.aux;
-            init = src->anon.init;
-            break;
-        case VM_FILE:
-            src_aux = src->file.aux;
-            init = src->file.init;
-            break;
-    }
+	switch (VM_TYPE(src->operations->type)) {
+		case VM_UNINIT:
+			src_aux = src->uninit.aux;
+			init = src->uninit.init;
+			break;
+		case VM_ANON:
+			src_aux = src->anon.aux;
+			init = src->anon.init;
+			break;
+		case VM_FILE:
+			src_aux = src->file.aux;
+			init = src->file.init;
+			break;
+	}
 
-    void *aux = NULL;
-    if (!duplicate_aux(src_aux, &aux))
-        return false;
+	void *aux = NULL;
+	if (!duplicate_aux(src_aux, &aux))
+		return false;
 
-    if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
-        return false;
+	if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
+		return false;
 
-    dst = spt_find_page(spt, upage);
-    if (dst == NULL)
-        return false;
+	dst = spt_find_page(spt, upage);
+	if (dst == NULL)
+		return false;
 
-    if (VM_TYPE(src->operations->type) != VM_UNINIT) {
-        if (vm_do_claim_page(dst))
-            memcpy(dst->frame->kva, src->frame->kva, PGSIZE);
-    }
+	if (VM_TYPE(src->operations->type) != VM_UNINIT) {
+		if (vm_do_claim_page(dst))
+			memcpy(dst->frame->kva, src->frame->kva, PGSIZE);
+	}
 
-    return true;
+	return true;
 }
 
 bool
@@ -337,16 +332,16 @@ supplemental_page_table_copy (struct supplemental_page_table *dst,
 		struct supplemental_page_table *src) {
 	// printf("########################  %s  ########################\n", "supplemental_page_table_copy");
 	struct hash *src_hash = &src->h;
-    struct hash_iterator src_iter;
+	struct hash_iterator src_iter;
 
-    hash_first(&src_iter, src_hash);
-    while (hash_next (&src_iter)) {
-        struct page *src_page = hash_entry (hash_cur (&src_iter), struct page, hash_elem);
-        if(!page_copy_action(dst, src_page)) {
-            return false;
-        }
-    }
-    return true;
+	hash_first(&src_iter, src_hash);
+	while (hash_next (&src_iter)) {
+		struct page *src_page = hash_entry (hash_cur (&src_iter), struct page, hash_elem);
+		if(!page_copy_action(dst, src_page)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 

@@ -16,6 +16,8 @@ static void anon_destroy (struct page *page);
 
 static struct bitmap *swap_bitmap;
 
+static struct lock swap_lock;
+
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
 	.swap_in = anon_swap_in,
@@ -37,6 +39,7 @@ vm_anon_init (void) {
 	swap_disk = disk_get(1, 1);
 	int swap_size = disk_size(swap_disk);
 	swap_bitmap = bitmap_create(swap_size / 8);
+	lock_init(&swap_lock);
 }
 
 /* Initialize the file mapping */
@@ -48,6 +51,8 @@ anon_initializer (struct page *page, enum vm_type type, void *kva) {
 	struct anon_page *anon_page = &page->anon;
 
 	anon_page->swap_slot = -1;
+
+	return true;
 }
 
 /* Swap in the page by read contents from the swap disk. */
@@ -58,10 +63,13 @@ static bool
 anon_swap_in (struct page *page, void *kva) {
 	struct anon_page *anon_page = &page->anon;
 	void *kva_ = pg_round_down (page->frame->kva);
+
+	lock_acquire(&swap_lock);
 	for (int i = 0; i < 8; i++)
 		disk_read (swap_disk, anon_page->swap_slot * 8 + i, kva_ + (DISK_SECTOR_SIZE * i));
 
 	bitmap_set (swap_bitmap, anon_page->swap_slot, 0);
+	lock_release(&swap_lock);
 
 	anon_page->swap_slot = -1;
 	return true;
@@ -78,6 +86,7 @@ anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
 	void	*kva_ = pg_round_down (page->frame->kva);
 
+	lock_acquire(&swap_lock);
 	disk_sector_t swap_slot = bitmap_scan_and_flip(swap_bitmap, 0, 1, false);
 	if (swap_slot == BITMAP_ERROR)
 		PANIC ("Kernel Panic");
@@ -87,6 +96,7 @@ anon_swap_out (struct page *page) {
 
 	anon_page->swap_slot = swap_slot;
 	pml4_clear_page(thread_current()->pml4, pg_round_down (page->va));
+	lock_release(&swap_lock);
 
 	return true;
 }
@@ -101,6 +111,8 @@ anon_destroy (struct page *page) {
 
 	if (page->frame) {
 		list_remove(&page->frame->f_elem);
+		page->frame->page = NULL;
+		page->frame = NULL;
 		free (page->frame);
 	}
 }
